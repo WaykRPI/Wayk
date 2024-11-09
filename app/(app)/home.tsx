@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import * as Location from 'expo-location';
 import { supabase } from '../lib/supabase';
 import { useLocationContext } from '../../contexts/LocationContext';
+import ReportForm from '../../components/ReportForm';
 
 export default function Home() {
   const { user, signOut } = useAuth();
@@ -20,6 +21,7 @@ export default function Home() {
     longitudeDelta: 0.0421,
   });
   const [intersections, setIntersections] = useState<any[]>([]);
+  const [reports, setReports] = useState<any[]>([]); // State to hold reports
 
   useEffect(() => {
     if (location) {
@@ -57,24 +59,32 @@ export default function Home() {
     }
   };
 
+  const fetchReports = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('reports')
+        .select('*');
+
+      if (error) throw error;
+
+      setReports(data); // Set the reports state
+    } catch (error) {
+      console.error('Error fetching reports:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchReports(); // Fetch reports when the component mounts
+  }, []);
+
   const handleLocationSelect = async (event: any) => {
     const coords = event.nativeEvent.coordinate;
     setSelectedLocation(coords);
-    
-    try {
-      const { error } = await supabase
-        .from('locations')
-        .insert({
-          user_id: user?.id,
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          created_at: new Date().toISOString()
-        });
+  };
 
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error saving location:', error);
-    }
+  const handleReportSubmitted = () => {
+    fetchReports(); // Refresh the reports after a new report is submitted
+    setSelectedLocation(null); // Clear the selected location
   };
 
   return (
@@ -116,6 +126,18 @@ export default function Home() {
               />
             </Marker>
           ))}
+          {reports.map((report) => (
+            <Marker
+              key={report.id}
+              coordinate={{
+                latitude: report.latitude,
+                longitude: report.longitude,
+              }}
+              title={report.report_type === 'obstacle' ? 'Obstacle' : 'Construction'}
+              description={report.description}
+              pinColor={report.report_type === 'obstacle' ? 'red' : 'orange'} // Different colors for different report types
+            />
+          ))}
         </MapView>
       </View>
 
@@ -129,22 +151,12 @@ export default function Home() {
         </Pressable>
       </View>
 
-      {selectedLocation && (
-        <View style={{ position: 'absolute', bottom: 20, left: 20, right: 20, backgroundColor: 'white', padding: 15, borderRadius: 10 }}>
-          <Text style={{ fontSize: 16, textAlign: 'center', marginBottom: 10 }}>
-            Selected: {selectedLocation.latitude.toFixed(4)}, 
-            {selectedLocation.longitude.toFixed(4)}
-          </Text>
-          <Pressable 
-            style={{ backgroundColor: '#0ea5e9', padding: 15, borderRadius: 5 }}
-            onPress={() => {
-              setSelectedLocation(null);
-            }}
-          >
-            <Text style={{ color: 'white', textAlign: 'center', fontWeight: 'bold' }}>Confirm Location</Text>
-          </Pressable>
-        </View>
-      )}
+      {/* Add the ReportForm component here */}
+      <ReportForm 
+        latitude={selectedLocation?.latitude.toString() || ''} 
+        longitude={selectedLocation?.longitude.toString() || ''} 
+        onReportSubmitted={handleReportSubmitted} 
+      />
     </View>
   );
 }

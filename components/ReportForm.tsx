@@ -3,10 +3,14 @@ import { View, Text, TextInput, Button, StyleSheet } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../app/lib/supabase';
 
-const ReportForm: React.FC = () => {
+interface ReportFormProps {
+  latitude: string;
+  longitude: string;
+  onReportSubmitted: () => void; // Callback to notify when a report is submitted
+}
+
+const ReportForm: React.FC<ReportFormProps> = ({ latitude, longitude, onReportSubmitted }) => {
   const { user } = useAuth();
-  const [latitude, setLatitude] = useState('');
-  const [longitude, setLongitude] = useState('');
   const [description, setDescription] = useState('');
   const [reportType, setReportType] = useState<'obstacle' | 'construction'>('obstacle');
   const [loading, setLoading] = useState(false);
@@ -35,12 +39,11 @@ const ReportForm: React.FC = () => {
       if (error) throw error;
 
       // Clear the form after submission
-      setLatitude('');
-      setLongitude('');
       setDescription('');
       setReportType('obstacle');
+      onReportSubmitted(); // Notify parent component
     } catch (error) {
-      setError('An error occurred while submitting the report.');
+      setError( 'An error occurred while submitting the report.');
     } finally {
       setLoading(false);
     }
@@ -50,20 +53,6 @@ const ReportForm: React.FC = () => {
     <View style={styles.container}>
       <Text style={styles.title}>Report an Obstacle or Construction Site</Text>
       {error && <Text style={styles.error}>{error}</Text>}
-      <TextInput
-        style={styles.input}
-        placeholder="Latitude"
-        value={latitude}
-        onChangeText={setLatitude}
-        keyboardType="numeric"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Longitude"
-        value={longitude}
-        onChangeText={setLongitude}
-        keyboardType="numeric"
-      />
       <TextInput
         style={styles.input}
         placeholder="Description (optional)"
