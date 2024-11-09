@@ -1,77 +1,26 @@
-// components/TestConnection.tsx
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, Button, StyleSheet, ScrollView } from 'react-native';
-import { supabase } from './lib/supabase';
-
-interface Location {
-  id: string;
-  created_at: string;
-  title: string;
-  description: string;
-  latitude: number;
-  longitude: number;
-  type: string;
-}
+import { useRouter } from 'expo-router'; // Import useRouter for navigation
 
 const TestConnection: React.FC = () => {
-  const [result, setResult] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(false);
+  const router = useRouter(); // Initialize the router
+  const [loading, setLoading] = React.useState(false); // State for loading
+  const [result, setResult] = React.useState<string>(''); // State for result
 
   const testInsert = async () => {
-    try {
-      setLoading(true);
-      setResult('Testing connection...');
-
-      const { data, error } = await supabase
-        .from('locations')
-        .insert({
-          title: 'Test Location',
-          description: 'This is a test location',
-          latitude: 37.7749,
-          longitude: -122.4194,
-          type: 'test'
-        })
-        .select()
-        .single();
-
-      if (error) {
-        setResult(`Error: ${error.message}`);
-        console.error('Detailed error:', error);
-      } else {
-        setResult(`Success! Inserted data: ${JSON.stringify(data, null, 2)}`);
-      }
-
-    } catch (e) {
-      setResult(`Caught error: ${e instanceof Error ? e.message : 'Unknown error'}`);
-      console.error('Caught error:', e);
-    } finally {
-      setLoading(false);
-    }
+    // Your insert logic here
+    // Example: setLoading(true); and perform the insert operation
+    // setResult('Insert successful!'); or handle errors
   };
 
   const testSelect = async () => {
-    try {
-      setLoading(true);
-      setResult('Testing select...');
+    // Your select logic here
+    // Example: setLoading(true); and perform the select operation
+    // setResult('Select successful!'); or handle errors
+  };
 
-      const { data, error } = await supabase
-        .from('locations')
-        .select('*')
-        .limit(5);
-
-      if (error) {
-        setResult(`Error: ${error.message}`);
-        console.error('Detailed error:', error);
-      } else {
-        setResult(`Success! Found ${data?.length ?? 0} records: ${JSON.stringify(data, null, 2)}`);
-      }
-
-    } catch (e) {
-      setResult(`Caught error: ${e instanceof Error ? e.message : 'Unknown error'}`);
-      console.error('Caught error:', e);
-    } finally {
-      setLoading(false);
-    }
+  const handleGoToHome = () => {
+    router.replace('/home'); // Navigate to (app)/home screen
   };
 
   return (
@@ -95,6 +44,14 @@ const TestConnection: React.FC = () => {
       <View style={styles.resultContainer}>
         <Text style={styles.resultTitle}>Result:</Text>
         <Text style={styles.resultText}>{result}</Text>
+      </View>
+
+      {/* Button to go to Home */}
+      <View style={styles.homeButtonContainer}>
+        <Button
+          title="Go to Home"
+          onPress={handleGoToHome} // Call the function to navigate to home
+        />
       </View>
     </ScrollView>
   );
@@ -128,6 +85,9 @@ const styles = StyleSheet.create({
   },
   resultText: {
     fontFamily: 'monospace',
+  },
+  homeButtonContainer: {
+    marginTop: 20,
   },
 });
 
