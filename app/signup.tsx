@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
@@ -12,6 +12,11 @@ export default function Signup() {
    const [email, setEmail] = useState('');
    const [password, setPassword] = useState('');
    const [confirmPassword, setConfirmPassword] = useState('');
+
+   // Add console log to debug
+   useEffect(() => {
+      console.log('Location error in signup:', errorMsg);
+   }, [errorMsg]);
 
    const handleSignup = () => {
       console.log('Signup:', email, password, confirmPassword);
@@ -29,49 +34,51 @@ export default function Signup() {
                   </View>
                )}
             </View>
-            
-            <View style={styles.formSection}>
-               <ThemedText type='title' style={styles.title}>
-                  Create Account
-               </ThemedText>
 
-               <TextInput
-                  style={styles.input}
-                  placeholder='Email'
-                  value={email}
-                  onChangeText={setEmail}
-                  autoCapitalize='none'
-                  keyboardType='email-address'
-               />
-
-               <TextInput
-                  style={styles.input}
-                  placeholder='Password'
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-               />
-
-               <TextInput
-                  style={styles.input}
-                  placeholder='Confirm Password'
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry
-               />
-
-               <Button title='Sign Up' onPress={handleSignup} />
-
-               <View style={styles.footer}>
-                  <ThemedText style={styles.footerText}>
-                     Already have an account?{' '}
+            <View style={styles.mainContent}>
+               <View style={styles.formSection}>
+                  <ThemedText type='title' style={styles.title}>
+                     Create Account
                   </ThemedText>
-                  <ThemedText
-                     style={styles.linkText}
-                     onPress={() => router.replace('/login')}
-                  >
-                     Login
-                  </ThemedText>
+
+                  <TextInput
+                     style={styles.input}
+                     placeholder='Email'
+                     value={email}
+                     onChangeText={setEmail}
+                     autoCapitalize='none'
+                     keyboardType='email-address'
+                  />
+
+                  <TextInput
+                     style={styles.input}
+                     placeholder='Password'
+                     value={password}
+                     onChangeText={setPassword}
+                     secureTextEntry
+                  />
+
+                  <TextInput
+                     style={styles.input}
+                     placeholder='Confirm Password'
+                     value={confirmPassword}
+                     onChangeText={setConfirmPassword}
+                     secureTextEntry
+                  />
+
+                  <Button title='Sign Up' onPress={handleSignup} />
+
+                  <View style={styles.footer}>
+                     <ThemedText style={styles.footerText}>
+                        Already have an account?{' '}
+                     </ThemedText>
+                     <ThemedText
+                        style={styles.linkText}
+                        onPress={() => router.replace('/login')}
+                     >
+                        Login
+                     </ThemedText>
+                  </View>
                </View>
             </View>
          </View>
@@ -121,9 +128,15 @@ const styles = StyleSheet.create({
       padding: 10,
       borderRadius: 8,
       marginBottom: 10,
+      marginHorizontal: 20,
    },
    topSection: {
       marginTop: 40,
+      width: '100%',
+   },
+   mainContent: {
+      flex: 1,
+      marginTop: 20,
    },
    formSection: {
       flex: 1,

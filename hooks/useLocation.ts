@@ -10,9 +10,14 @@ export const useLocation = () => {
   const checkAndRequestLocationPermissions = async () => {
     try {
       setIsLoading(true);
+      console.log('Checking location permissions...'); // Debug log
+
+      // First check if location services are enabled
       const isLocationEnabled = await Location.hasServicesEnabledAsync();
+      console.log('Location services enabled:', isLocationEnabled); // Debug log
       
       if (!isLocationEnabled) {
+        setErrorMsg('Please enable location services to use this app');
         Alert.alert(
           "Location Services Disabled",
           "Please enable location services to use this app.",
@@ -33,9 +38,12 @@ export const useLocation = () => {
         return false;
       }
 
-      let { status } = await Location.requestForegroundPermissionsAsync();
+      // Request foreground permission
+      const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
+      console.log('Foreground permission status:', foregroundStatus); // Debug log
       
-      if (status !== 'granted') {
+      if (foregroundStatus !== 'granted') {
+        setErrorMsg('Location permission is required to use this app');
         Alert.alert(
           "Permission Denied",
           "We need location permissions to show relevant information. Please enable it in settings.",
@@ -53,45 +61,37 @@ export const useLocation = () => {
             }
           ]
         );
-        setErrorMsg('Permission to access location was denied');
         return false;
       }
 
-      if (Platform.OS === 'ios') {
-        try {
-          const foregroundPermission = await Location.getForegroundPermissionsAsync();
-          // @ts-ignore - iOS specific property
-          if (foregroundPermission.ios?.scope === Location.LocationAccuracyTypes.REDUCED) {
-            Alert.alert(
-              "Precise Location Recommended",
-              "For the best experience, please enable precise location in your device settings.",
-              [
-                { text: "Cancel", style: "cancel" },
-                { 
-                  text: "Open Settings", 
-                  onPress: () => Linking.openURL('app-settings:')
-                }
-              ]
-            );
-          }
-        } catch (error) {
-          console.warn('Error checking precise location:', error);
-        }
+      // Try to get current location
+      try {
+        const currentLocation = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced
+        });
+        console.log('Got location:', currentLocation); // Debug log
+        setLocation(currentLocation);
+        setErrorMsg(null);
+        return true;
+      } catch (error) {
+        console.error('Error getting location:', error); // Debug log
+        setErrorMsg('Unable to get your location. Please check your settings.');
+        return false;
       }
 
-      const currentLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High
-      });
-      setLocation(currentLocation);
-      return true;
     } catch (error) {
-      setErrorMsg('Error getting location');
-      console.error(error);
+      console.error('Location permission error:', error); // Debug log
+      setErrorMsg('Error accessing location services');
       return false;
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Request permissions immediately when the hook is used
+  useEffect(() => {
+    checkAndRequestLocationPermissions();
+  }, []);
 
   return {
     location,
