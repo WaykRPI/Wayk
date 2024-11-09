@@ -29,7 +29,13 @@ export default {
       favicon: "./assets/images/favicon.png"
     },
     plugins: [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-secure-store",
+        {
+          faceIDPermission: "Allow $(PRODUCT_NAME) to access your Face ID biometric data."
+        }
+      ]
     ],
     experiments: {
       typedRoutes: true
