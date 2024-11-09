@@ -1,37 +1,38 @@
-import { Stack } from "expo-router";
-import { Colors } from '../constants/Colors';
+import { Stack, SplashScreen } from 'expo-router';
+import { useEffect } from 'react';
+import { AuthProvider, useAuth } from '../hooks/useAuth';
+
+// Keep the splash screen visible while we fetch resources
+SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   return (
-    <Stack
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: Colors.white,
-        },
-        headerShadowVisible: false,
-        headerTintColor: Colors.text,
-        headerTitleStyle: {
-          fontWeight: '600',
-        },
-        headerBackVisible: false,
-      }}
-    >
+    <AuthProvider>
+      <RootLayoutNav />
+    </AuthProvider>
+  );
+}
+
+function RootLayoutNav() {
+  const { loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading) {
+      // Hide splash screen when loading is complete
+      SplashScreen.hideAsync();
+    }
+  }, [loading]);
+
+  // While loading, return null to keep splash screen visible
+  if (loading) {
+    return null;
+  }
+
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen 
-        name="login" 
-        options={{ 
-          headerShown: false,
-          presentation: 'modal'
-        }} 
-      />
-      <Stack.Screen 
-        name="signup" 
-        options={{ 
-          headerShown: false,
-          presentation: 'modal'
-        }} 
-      />
-      <Stack.Screen name="test" />
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      <Stack.Screen name="(app)" options={{ headerShown: false }} />
     </Stack>
   );
 }
