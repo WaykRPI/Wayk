@@ -43,6 +43,8 @@ export default {
     extra: {
       supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
       supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+      mapboxPublicToken: process.env.EXPO_PUBLIC_MAPBOX_PUBLIC_TOKEN,
+      mapboxSecretToken: process.env.EXPO_PUBLIC_MAPBOX_SECRET_TOKEN,
     }
   }
 };

@@ -14,9 +14,10 @@
     },
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.yourcompany.wayk",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "This app needs access to location to show nearby points of interest.",
-        "NSLocationAlwaysUsageDescription": "This app needs access to location to show nearby points of interest."
+        "NSLocationWhenInUseUsageDescription": "Wayk needs access to location to show your position and nearby paths.",
+        "NSLocationAlwaysUsageDescription": "Wayk needs access to location to show your position and nearby paths."
       }
     },
     "android": {
@@ -24,7 +25,11 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+      "package": "com.yourcompany.wayk",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -34,9 +39,16 @@
     "plugins": [
       "expo-router",
       [
+        "@rnmapbox/maps",
+        {
+          "RNMapboxMapsImpl": "mapbox",
+          "RNMapboxMapsDownloadToken": "YOUR_MAPBOX_SECRET_DOWNLOAD_TOKEN"
+        }
+      ],
+      [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location."
+          "locationAlwaysAndWhenInUsePermission": "Allow Wayk to use your location to find nearby paths."
         }
       ]
     ],
