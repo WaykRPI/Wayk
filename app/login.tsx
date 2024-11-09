@@ -4,19 +4,45 @@ import { useRouter } from 'expo-router';
 import { ThemedText } from '../components/ThemedText';
 import { Colors } from '../constants/Colors';
 import { useLocationContext } from '../contexts/LocationContext';
+import { supabase } from '@/app/lib/supabase';
 
 export default function Login() {
    const router = useRouter();
    const { errorMsg } = useLocationContext();
    const [email, setEmail] = useState('');
    const [password, setPassword] = useState('');
+   const [loading, setLoading] = useState(false);
+   const [error, setError] = useState<string | null>(null);
 
    useEffect(() => {
       console.log('Location error in login:', errorMsg);
    }, [errorMsg]);
 
-   const handleLogin = () => {
-      console.log('Login:', email, password);
+   const handleLogin = async () => {
+      if (!email || !password) {
+         setError('Please fill in all fields');
+         return;
+      }
+
+      try {
+         setLoading(true);
+         setError(null);
+
+         const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+         });
+
+         if (error) throw error;
+
+         if (data.session) {
+            router.replace('/');
+         }
+      } catch (error: any) {
+         setError(error.message || 'An error occurred during login');
+      } finally {
+         setLoading(false);
+      }
    };
 
    return (
@@ -33,6 +59,11 @@ export default function Login() {
             </View>
 
             <View style={styles.mainContent}>
+               {error && (
+                  <View style={styles.errorContainer}>
+                     <ThemedText style={styles.errorText}>{error}</ThemedText>
+                  </View>
+               )}
                <View style={styles.header}>
                   <ThemedText type='title' style={styles.title}>
                      Welcome Back
@@ -74,8 +105,14 @@ export default function Login() {
                      </ThemedText>
                   </TouchableOpacity>
 
-                  <TouchableOpacity style={styles.button} onPress={handleLogin}>
-                     <ThemedText style={styles.buttonText}>Sign In</ThemedText>
+                  <TouchableOpacity
+                     style={[styles.button, loading && styles.buttonDisabled]}
+                     onPress={handleLogin}
+                     disabled={loading}
+                  >
+                     <ThemedText style={styles.buttonText}>
+                        {loading ? 'Signing In...' : 'Sign In'}
+                     </ThemedText>
                   </TouchableOpacity>
 
                   <View style={styles.footer}>
@@ -185,5 +222,18 @@ const styles = StyleSheet.create({
       color: Colors.error,
       textAlign: 'center',
       fontSize: 14,
+   },
+   errorContainer: {
+      backgroundColor: 'rgba(255, 0, 0, 0.1)',
+      padding: 10,
+      borderRadius: 8,
+      marginBottom: 10,
+   },
+   errorText: {
+      color: Colors.error,
+      textAlign: 'center',
+   },
+   buttonDisabled: {
+      opacity: 0.7,
    },
 });

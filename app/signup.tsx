@@ -5,6 +5,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { Button, TextInput } from 'react-native';
 import { Colors } from '@/constants/Colors';
 import { useLocationContext } from '../contexts/LocationContext';
+import { supabase } from '@/app/lib/supabase';
 
 export default function Signup() {
    const router = useRouter();
@@ -12,14 +13,50 @@ export default function Signup() {
    const [email, setEmail] = useState('');
    const [password, setPassword] = useState('');
    const [confirmPassword, setConfirmPassword] = useState('');
+   const [loading, setLoading] = useState(false);
+   const [error, setError] = useState<string | null>(null);
 
    // Add console log to debug
    useEffect(() => {
       console.log('Location error in signup:', errorMsg);
    }, [errorMsg]);
 
-   const handleSignup = () => {
-      console.log('Signup:', email, password, confirmPassword);
+   const handleSignup = async () => {
+      if (!email || !password || !confirmPassword) {
+         setError('Please fill in all fields');
+         return;
+      }
+
+      if (password !== confirmPassword) {
+         setError('Passwords do not match');
+         return;
+      }
+
+      try {
+         setLoading(true);
+         setError(null);
+
+         const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+               emailRedirectTo: `${window.location.origin}/auth/callback`,
+            },
+         });
+
+         if (error) throw error;
+
+         if (data.session) {
+            router.replace('/');
+         } else {
+            // Usually means email confirmation is required
+            setError('Please check your email to confirm your account');
+         }
+      } catch (error: any) {
+         setError(error.message || 'An error occurred during signup');
+      } finally {
+         setLoading(false);
+      }
    };
 
    return (
@@ -31,6 +68,11 @@ export default function Signup() {
                      <ThemedText style={styles.warningText}>
                         ⚠️ {errorMsg}
                      </ThemedText>
+                  </View>
+               )}
+               {error && (
+                  <View style={styles.errorContainer}>
+                     <ThemedText style={styles.errorText}>{error}</ThemedText>
                   </View>
                )}
             </View>
@@ -66,7 +108,11 @@ export default function Signup() {
                      secureTextEntry
                   />
 
-                  <Button title='Sign Up' onPress={handleSignup} />
+                  <Button
+                     title={loading ? 'Creating Account...' : 'Sign Up'}
+                     onPress={handleSignup}
+                     disabled={loading}
+                  />
 
                   <View style={styles.footer}>
                      <ThemedText style={styles.footerText}>
@@ -146,5 +192,15 @@ const styles = StyleSheet.create({
       color: Colors.error,
       textAlign: 'center',
       fontSize: 14,
+   },
+   errorContainer: {
+      backgroundColor: 'rgba(255, 0, 0, 0.1)',
+      padding: 10,
+      borderRadius: 8,
+      marginBottom: 10,
+   },
+   errorText: {
+      color: Colors.error,
+      textAlign: 'center',
    },
 });
