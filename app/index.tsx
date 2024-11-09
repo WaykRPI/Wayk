@@ -1,15 +1,19 @@
 import { View, ActivityIndicator } from "react-native";
-import { useRouter } from "expo-router";
-import { ThemedText } from '../components/ThemedText';
-import { Button } from 'react-native';
 import { Redirect } from 'expo-router';
+import { useEffect } from 'react';
+import { useLocationContext } from '../contexts/LocationContext';
 import { useAuth } from '../hooks/useAuth';
 
 export default function Index() {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const { errorMsg, checkAndRequestLocationPermissions } = useLocationContext();
+
+  useEffect(() => {
+    checkAndRequestLocationPermissions();
+  }, []);
 
   // Show loading indicator while checking auth status
-  if (loading) {
+  if (authLoading) {
     return (
       <View style={{
         flex: 1,
@@ -23,8 +27,8 @@ export default function Index() {
 
   // Handle redirect based on auth state
   if (!user) {
-    return <Redirect href="/(auth)/sign-in" />;
+    return <Redirect href="/login" />;
   }
 
-  return <Redirect href="/(app)/home" />;
+  return <Redirect href="/test" />;
 }
