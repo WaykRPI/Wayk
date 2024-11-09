@@ -1,12 +1,14 @@
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
 import MapView, { Marker } from 'react-native-maps';
 import { useState, useEffect } from 'react';
 import * as Location from 'expo-location';
 import { supabase } from '../lib/supabase';
+import { useLocationContext } from '../../contexts/LocationContext';
 
 export default function Home() {
   const { user, signOut } = useAuth();
+  const { location, errorMsg } = useLocationContext();
   const [selectedLocation, setSelectedLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -17,29 +19,21 @@ export default function Home() {
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setErrorMsg('Permission to access location was denied');
-        return;
-      }
-
-      try {
-        let location = await Location.getCurrentPositionAsync({});
-        setCurrentLocation(prev => ({
-          ...prev,
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-        }));
-      } catch (error) {
-        setErrorMsg('Error getting location');
-        console.error(error);
-      }
-    })();
-  }, []);
+    if (location) {
+      setCurrentLocation({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        latitudeDelta: 0.0922,
+        longitudeDelta: 0.0421,
+      });
+      setSelectedLocation({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+    }
+  }, [location]);
 
   const handleLocationSelect = async (event: any) => {
     const coords = event.nativeEvent.coordinate;
@@ -58,7 +52,6 @@ export default function Home() {
       if (error) throw error;
     } catch (error) {
       console.error('Error saving location:', error);
-      setErrorMsg('Error saving location');
     }
   };
 
@@ -72,14 +65,19 @@ export default function Home() {
           showsMyLocationButton
           showsCompass
           onPress={handleLocationSelect}
+          customMapStyle={mapStyle} // Custom map style
         >
           {selectedLocation && (
             <Marker
               coordinate={selectedLocation}
               title="Selected Location"
               description="Tap to confirm this location"
-              pinColor="#0ea5e9"
-            />
+            >
+              <Image 
+                source={{ uri: 'https://img.icons8.com/ios-filled/50/0ea5e9/marker.png' }} 
+                style={styles.marker} 
+              /> {/* Custom marker */}
+            </Marker>
           )}
         </MapView>
       </View>
@@ -117,12 +115,104 @@ export default function Home() {
   );
 }
 
+// Sample custom map style
+const mapStyle = [
+  {
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#212121"
+      }
+    ]
+  },
+  {
+    "elementType": "labels.icon",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#757575"
+      }
+    ]
+  },
+  {
+    "elementType": "labels.text.stroke",
+    "stylers": [
+      {
+        "color": "#212121"
+      }
+    ]
+  },
+  {
+    "featureType": "administrative",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#000000"
+      }
+    ]
+  },
+  {
+    "featureType": "administrative.country",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#ffffff"
+      }
+    ]
+  },
+  {
+    "featureType": "administrative.locality",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#ffffff"
+      }
+    ]
+  },
+  {
+    "featureType": "poi",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#000000"
+      }
+    ]
+  },
+  {
+    "featureType": "road",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#ffffff"
+      }
+    ]
+  },
+  {
+    "featureType": "water",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#000000"
+      }
+    ]
+  }
+];
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
   mapContainer: {
     flex: 1,
+    borderRadius: 10,
+    overflow: 'hidden', // To round the corners of the map
   },
   map: {
     flex: 1,
@@ -198,5 +288,9 @@ const styles = StyleSheet.create({
     color: 'white',
     textAlign: 'center',
     fontWeight: 'bold',
+  },
+  marker: {
+    width: 30,
+    height: 30,
   },
 });
