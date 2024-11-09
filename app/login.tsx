@@ -3,9 +3,11 @@ import { StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ThemedText } from '../components/ThemedText';
 import { Colors } from '../constants/Colors';
+import { useLocationContext } from '../contexts/LocationContext';
 
 export default function Login() {
    const router = useRouter();
+   const { errorMsg } = useLocationContext();
    const [email, setEmail] = useState('');
    const [password, setPassword] = useState('');
 
@@ -16,6 +18,13 @@ export default function Login() {
    return (
       <View style={styles.container}>
          <View style={styles.overlay}>
+            {errorMsg && (
+               <View style={styles.locationWarning}>
+                  <ThemedText style={styles.warningText}>
+                     ⚠️ {errorMsg}
+                  </ThemedText>
+               </View>
+            )}
             <View style={styles.header}>
                <ThemedText type='title' style={styles.title}>
                   Welcome Back
@@ -148,5 +157,17 @@ const styles = StyleSheet.create({
    linkText: {
       color: Colors.primary,
       fontWeight: '600',
+   },
+   locationWarning: {
+      backgroundColor: 'rgba(255, 107, 107, 0.1)',
+      padding: 10,
+      borderRadius: 8,
+      marginBottom: 10,
+      marginTop: 40,
+   },
+   warningText: {
+      color: Colors.error,
+      textAlign: 'center',
+      fontSize: 14,
    },
 });
