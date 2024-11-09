@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../app/lib/supabase';
 
 interface ReportFormProps {
   latitude: string;
   longitude: string;
-  onReportSubmitted: () => void; // Callback to notify when a report is submitted
+  onReportSubmitted: () => void;
 }
 
 const ReportForm: React.FC<ReportFormProps> = ({ latitude, longitude, onReportSubmitted }) => {
@@ -43,7 +43,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ latitude, longitude, onReportSu
       setReportType('obstacle');
       onReportSubmitted(); // Notify parent component
     } catch (error) {
-      setError( 'An error occurred while submitting the report.');
+      setError('An error occurred while submitting the report.');
     } finally {
       setLoading(false);
     }
@@ -56,41 +56,94 @@ const ReportForm: React.FC<ReportFormProps> = ({ latitude, longitude, onReportSu
       <TextInput
         style={styles.input}
         placeholder="Description (optional)"
+        placeholderTextColor="#888"
         value={description}
         onChangeText={setDescription}
       />
       <View style={styles.radioContainer}>
-        <Button title="Obstacle" onPress={() => setReportType('obstacle')} />
-        <Button title="Construction" onPress={() => setReportType('construction')} />
+        <TouchableOpacity
+          style={[styles.radioButton, reportType === 'obstacle' && styles.radioButtonActive]}
+          onPress={() => setReportType('obstacle')}
+        >
+          <Text style={styles.radioText}>Obstacle</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.radioButton, reportType === 'construction' && styles.radioButtonActive]}
+          onPress={() => setReportType('construction')}
+        >
+          <Text style={styles.radioText}>Construction</Text>
+        </TouchableOpacity>
       </View>
-      <Button title="Submit Report" onPress={handleSubmit} disabled={loading} />
+      <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={loading}>
+        <Text style={styles.submitButtonText}>{loading ? 'Submitting...' : 'Submit Report'}</Text>
+      </TouchableOpacity>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
+    backgroundColor: '#f2f2f2',
+    borderRadius: 10,
     padding: 20,
+    margin: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 3,
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 10,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 15,
   },
   error: {
-    color: 'red',
+    color: '#e74c3c',
     marginBottom: 10,
+    fontSize: 14,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: '#ddd',
+    backgroundColor: '#fff',
+    borderRadius: 8,
     padding: 10,
-    marginBottom: 10,
+    fontSize: 16,
+    color: '#333',
+    marginBottom: 15,
   },
   radioContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 20,
+  },
+  radioButton: {
+    flex: 1,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: '#e0e0e0',
+    alignItems: 'center',
+    marginRight: 5,
+  },
+  radioButtonActive: {
+    backgroundColor: '#333',
+  },
+  radioText: {
+    color: '#fff',
+    fontWeight: '500',
+  },
+  submitButton: {
+    backgroundColor: '#333',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  submitButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
