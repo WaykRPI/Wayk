@@ -13,11 +13,24 @@ export default function RootLayout() {
         headerTitleStyle: {
           fontWeight: '600',
         },
+        headerBackVisible: false,
       }}
     >
       <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="login" options={{ headerShown: false }} />
-      <Stack.Screen name="signup" options={{ headerShown: false }} />
+      <Stack.Screen 
+        name="login" 
+        options={{ 
+          headerShown: false,
+          presentation: 'modal'
+        }} 
+      />
+      <Stack.Screen 
+        name="signup" 
+        options={{ 
+          headerShown: false,
+          presentation: 'modal'
+        }} 
+      />
       <Stack.Screen name="test" />
     </Stack>
   );

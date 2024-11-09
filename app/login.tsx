@@ -65,7 +65,7 @@ export default function Login() {
                   <ThemedText style={styles.footerText}>
                      Don't have an account?{' '}
                   </ThemedText>
-                  <TouchableOpacity onPress={() => router.push('/signup')}>
+                  <TouchableOpacity onPress={() => router.replace('/signup')}>
                      <ThemedText style={styles.linkText}>Sign Up</ThemedText>
                   </TouchableOpacity>
                </View>
@@ -86,12 +86,12 @@ const styles = StyleSheet.create({
    },
    header: {
       marginTop: 60,
-      marginBottom: 40,
    },
    title: {
-      fontSize: 32,
-      marginBottom: 8,
+      marginTop: 60,
+      marginBottom: 10,
       textAlign: 'center',
+      color: Colors.lightText,
    },
    subtitle: {
       fontSize: 16,
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
       textAlign: 'center',
    },
    form: {
-      gap: 20,
+      gap: 10,
    },
    inputContainer: {
       gap: 8,

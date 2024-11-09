@@ -49,12 +49,17 @@ export default function Signup() {
 
             <Button title='Sign Up' onPress={handleSignup} />
 
-            <ThemedText
-               style={styles.link}
-               onPress={() => router.push('/login')}
-            >
-               Already have an account? Login
-            </ThemedText>
+            <View style={styles.footer}>
+               <ThemedText style={styles.footerText}>
+                  Already have an account?{' '}
+               </ThemedText>
+               <ThemedText
+                  style={styles.linkText}
+                  onPress={() => router.replace('/login')}
+               >
+                  Login
+               </ThemedText>
+            </View>
          </View>
       </View>
    );
@@ -73,6 +78,7 @@ const styles = StyleSheet.create({
    title: {
       marginBottom: 30,
       textAlign: 'center',
+      color: Colors.lightText,
    },
    input: {
       height: 40,
@@ -84,9 +90,17 @@ const styles = StyleSheet.create({
       paddingHorizontal: 10,
       backgroundColor: Colors.white,
    },
-   link: {
-      marginTop: 20,
+   linkText: {
+      color: Colors.primary,
+      fontWeight: '600',
+   },
+   footerText: {
+      color: Colors.lightText,
       textAlign: 'center',
-      color: '#0a7ea4',
+   },
+   footer: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      marginTop: 30,
    },
 });
