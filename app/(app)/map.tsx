@@ -1,31 +1,70 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, Text, Pressable } from 'react-native';
-import MapboxView from '../../components/MapboxMap';
-import { useRouter } from 'expo-router';
-import { supabase } from '../lib/supabase';
+import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
+import MapView, { Marker } from 'react-native-maps';
+import { useState, useEffect } from 'react';
+import * as Location from 'expo-location';
+import { supabase } from '../lib/supabase';
+import { useLocationContext } from '../../contexts/LocationContext';
 
-export default function MapScreen() {
+export default function Home() {
+  const { user, signOut } = useAuth();
+  const { location, errorMsg } = useLocationContext();
   const [selectedLocation, setSelectedLocation] = useState<{
     latitude: number;
     longitude: number;
   } | null>(null);
-  const { user } = useAuth();
-  const router = useRouter();
+  const [currentLocation, setCurrentLocation] = useState({
+    latitude: 37.78825,
+    longitude: -122.4324,
+    latitudeDelta: 0.0922,
+    longitudeDelta: 0.0421,
+  });
+  const [intersections, setIntersections] = useState<any[]>([]); // State to hold intersection nodes
 
-  const handleLocationSelect = async (coordinates: {
-    latitude: number;
-    longitude: number;
-  }) => {
-    setSelectedLocation(coordinates);
+  useEffect(() => {
+    if (location) {
+      setCurrentLocation({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        latitudeDelta: 0.0922,
+        longitudeDelta: 0.0421,
+      });
+      setSelectedLocation({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+
+      // Fetch intersections when location is available
+      fetchIntersections(location.coords.latitude, location.coords.longitude);
+    }
+  }, [location]);
+
+  const fetchIntersections = async (latitude: number, longitude: number) => {
+    const query = `
+      [out:json];
+      (
+        node["highway"="traffic_signals"](around:1000, ${latitude}, ${longitude});
+        node["highway"="crossing"](around:1000, ${latitude}, ${longitude});
+      );
+      out body;
+    `;
+
+    const response = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
+    const data = await response.json();
+    setIntersections(data.elements); // Set the intersection nodes
+  };
+
+  const handleLocationSelect = async (event: any) => {
+    const coords = event.nativeEvent.coordinate;
+    setSelectedLocation(coords);
     
     try {
       const { error } = await supabase
         .from('locations')
         .insert({
           user_id: user?.id,
-          latitude: coordinates.latitude,
-          longitude: coordinates.longitude,
+          latitude: coords.latitude,
+          longitude: coords.longitude,
           created_at: new Date().toISOString()
         });
 
@@ -37,14 +76,60 @@ export default function MapScreen() {
 
   return (
     <View style={styles.container}>
-      <MapboxView
-        onLocationSelect={handleLocationSelect}
-        initialLocation={{
-          latitude: 37.78825,
-          longitude: -122.4324,
-        }}
-      />
-      
+      <View style={styles.mapContainer}>
+        <MapView
+          style={styles.map}
+          initialRegion={currentLocation}
+          showsUserLocation
+          showsMyLocationButton
+          showsCompass
+          onPress={handleLocationSelect}
+          customMapStyle={mapStyle} // Custom map style
+        >
+          {selectedLocation && (
+            <Marker
+              coordinate={selectedLocation}
+              title="Selected Location"
+              description="Tap to confirm this location"
+            >
+              <Image 
+                source={{ uri: 'https://img.icons8.com/ios-filled/50/0ea5e9/marker.png' }} 
+                style={styles.marker} 
+              /> {/* Custom marker */}
+            </Marker>
+          )}
+          {/* Render intersection markers */}
+          {intersections.map((intersection) => (
+            <Marker
+              key={intersection.id}
+              coordinate={{
+                latitude: intersection.lat,
+                longitude: intersection.lon,
+              }}
+              title="Intersection"
+              description="Traffic signal or crossing"
+            >
+              <Image 
+                source={{ uri: 'https://img.icons8.com/ios-filled/50/ffcc00/marker.png' }} 
+                style={styles.marker} 
+              /> {/* Custom marker for intersections */}
+            </Marker>
+          ))}
+        </MapView>
+      </View>
+
+      {/* User Info Overlay */}
+      <View style={styles.overlay}>
+        <Text style={styles.title}>Welcome!</Text>
+        <Text style={styles.email}>{user?.email}</Text>
+        {errorMsg && <Text style={styles.error}>{errorMsg}</Text>}
+        
+        <Pressable style={styles.signOutButton} onPress={signOut}>
+          <Text style={styles.buttonText}>Sign Out</Text>
+        </Pressable>
+      </View>
+
+      {/* Selected Location Panel */}
       {selectedLocation && (
         <View style={styles.coordinatesContainer}>
           <Text style={styles.coordinates}>
@@ -52,10 +137,10 @@ export default function MapScreen() {
             {selectedLocation.longitude.toFixed(4)}
           </Text>
           <Pressable 
-            style={styles.button}
+            style={styles.confirmButton}
             onPress={() => {
               // Handle location confirmation
-              router.back();
+              setSelectedLocation(null);
             }}
           >
             <Text style={styles.buttonText}>Confirm Location</Text>
@@ -66,9 +151,147 @@ export default function MapScreen() {
   );
 }
 
+// Sample custom map style
+const mapStyle = [
+  {
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#212121"
+      }
+    ]
+  },
+  {
+    "elementType": "labels.icon",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#757575"
+      }
+    ]
+  },
+  {
+    "elementType": "labels.text.stroke",
+    "stylers": [
+      {
+        "color": "#212121"
+      }
+    ]
+  },
+  {
+    "featureType": "administrative",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#000000"
+      }
+    ]
+  },
+  {
+    "featureType": "administrative.country",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#ffffff"
+      }
+    ]
+  },
+  {
+    "featureType": "administrative.locality",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#ffffff"
+      }
+    ]
+  },
+  {
+    "featureType": "poi",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#000000"
+      }
+    ]
+  },
+  {
+    "featureType": "road",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#ffffff"
+      }
+    ]
+  },
+  {
+    "featureType": "water",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#000000"
+      }
+    ]
+  }
+];
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  mapContainer: {
+    flex: 1,
+    borderRadius: 10,
+    overflow: 'hidden', // To round the corners of the map
+  },
+  map: {
+    flex: 1,
+  },
+  overlay: {
+    position: 'absolute',
+    top: 40,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    padding: 20,
+    margin: 20,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  email: {
+    fontSize: 16,
+    marginBottom: 20,
+    color: '#666',
+  },
+  error: {
+    color: '#ef4444',
+    marginBottom: 10,
+  },
+  signOutButton: {
+    backgroundColor: '#ef4444',
+    padding: 15,
+    borderRadius: 5,
+    width: '100%',
+    maxWidth: 200,
   },
   coordinatesContainer: {
     position: 'absolute',
@@ -92,7 +315,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 10,
   },
-  button: {
+  confirmButton: {
     backgroundColor: '#0ea5e9',
     padding: 15,
     borderRadius: 5,
@@ -101,5 +324,9 @@ const styles = StyleSheet.create({
     color: 'white',
     textAlign: 'center',
     fontWeight: 'bold',
+  },
+  marker: {
+    width: 30,
+    height: 30,
   },
 });
