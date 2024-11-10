@@ -7,10 +7,11 @@ import {
   Animated,
   Dimensions,
   PanResponder,
+  Modal,
 } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
 import { useState, useEffect, useRef } from 'react';
-import MapView, { Marker, PROVIDER_GOOGLE, MapType, Camera } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE, MapType, Camera, Callout } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { supabase } from '../lib/supabase';
 import { useLocationContext } from '../../contexts/LocationContext';
@@ -106,6 +107,7 @@ export default function Home() {
   const [reports, setReports] = useState<any[]>([]);
   const [isModalVisible, setModalVisible] = useState(false);
   const [isReportMode, setReportMode] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const interpolateValue = (current: number, target: number, factor: number): number => {
     return current + (target - current) * factor;
@@ -392,160 +394,213 @@ export default function Home() {
     setSelectedLocation(null);
   };
 
+  const handleMarkerPress = (imageUrl: string | undefined) => {
+    if (imageUrl) {
+      setSelectedImage(imageUrl);
+    }
+  };
+
   return (
-    <View style={{ flex: 1 }}>
-      <MapView
-        ref={mapRef}
-        style={{ flex: 1 }}
-        provider={PROVIDER_GOOGLE}
-        initialRegion={currentLocation}
-        showsUserLocation={false}
-        showsMyLocationButton
-        showsCompass
-        showsBuildings={true}
-        showsTraffic={true}
-        mapType={mapType}
-        onPress={handleLocationSelect}
-        customMapStyle={mapStyle}
-        camera={camera}
-        followsUserLocation={true}
-        minZoomLevel={15}
-        maxZoomLevel={20}
-        rotateEnabled={true}
-        pitchEnabled={true}
-        toolbarEnabled={false}
-        onMapReady={() => {
-          mapRef.current?.setNativeProps({
-            renderToHardwareTextureAndroid: true,
-            shouldRasterizeIOS: true,
-          });
-        }}
-        onRegionChangeComplete={() => {
-          // Force center on user when map is moved
-          if (!isReportMode) {
-            centerOnUser();
-          }
-        }}
-      >
-        {location && (
-          <Marker
-            coordinate={{
-              latitude: currentAnimatedLocation.current.latitude,
-              longitude: currentAnimatedLocation.current.longitude,
-            }}
-            title="You"
-            anchor={{ x: 0.5, y: 0.5 }}
-            rotation={currentAnimatedLocation.current.heading}
-            zIndex={1000}
-          >
-            <UserMarker color="#0ea5e9" size={USER_MARKER_SIZE} />
-          </Marker>
-        )}
+     <View style={{ flex: 1 }}>
+        <MapView
+           ref={mapRef}
+           style={{ flex: 1 }}
+           onPress={handleLocationSelect}
+           customMapStyle={mapStyle}
+           camera={camera}
+           followsUserLocation={true}
+           minZoomLevel={15}
+           maxZoomLevel={20}
+           rotateEnabled={true}
+           pitchEnabled={true}
+           toolbarEnabled={false}
+           onMapReady={() => {
+              mapRef.current?.setNativeProps({
+                 renderToHardwareTextureAndroid: true,
+                 shouldRasterizeIOS: true,
+              });
+           }}
+           onRegionChangeComplete={() => {
+              // Force center on user when map is moved
+              if (!isReportMode) {
+                 centerOnUser();
+              }
+           }}
+        >
+           {location && (
+              <Marker
+                 coordinate={{
+                    latitude: currentAnimatedLocation.current.latitude,
+                    longitude: currentAnimatedLocation.current.longitude,
+                 }}
+                 title='You'
+                 anchor={{ x: 0.5, y: 0.5 }}
+                 rotation={currentAnimatedLocation.current.heading}
+                 zIndex={1000}
+              >
+                 <UserMarker color='#0ea5e9' size={USER_MARKER_SIZE} />
+              </Marker>
+           )}
 
-        {activeUsers.map((activeUser) => (
-          <Marker
-            key={activeUser.id}
-            coordinate={{
-              latitude: activeUser.latitude,
-              longitude: activeUser.longitude,
-            }}
-            title={activeUser.user_email?.split('@')[0] || 'Anonymous'}
-            anchor={{ x: 0.5, y: 0.5 }}
-            zIndex={100}
-          >
-            <UserMarker color="#10b981" size={OTHER_MARKER_SIZE} />
-          </Marker>
-        ))}
+           {activeUsers.map((activeUser) => (
+              <Marker
+                 key={activeUser.id}
+                 coordinate={{
+                    latitude: activeUser.latitude,
+                    longitude: activeUser.longitude,
+                 }}
+                 title={activeUser.user_email?.split('@')[0] || 'Anonymous'}
+                 anchor={{ x: 0.5, y: 0.5 }}
+                 zIndex={100}
+              >
+                 <UserMarker color='#10b981' size={OTHER_MARKER_SIZE} />
+              </Marker>
+           ))}
 
-        {selectedLocation && (
-          <Marker
-            coordinate={selectedLocation}
-            title="Selected Location"
-            description="Tap to confirm this location"
-          >
-            <Image
-              source={{ uri: 'https://img.icons8.com/ios-filled/50/0ea5e9/marker.png' }}
-              style={{ width: 30, height: 30 }}
-            />
-          </Marker>
-        )}
+           {selectedLocation && (
+              <Marker
+                 coordinate={selectedLocation}
+                 title='Selected Location'
+                 description='Tap to confirm this location'
+              >
+                 <Image
+                    source={{
+                       uri: 'https://img.icons8.com/ios-filled/50/0ea5e9/marker.png',
+                    }}
+                    style={{ width: 30, height: 30 }}
+                 />
+              </Marker>
+           )}
 
-        {intersections.map((intersection) => (
-          <Marker
-            key={intersection.id}
-            coordinate={{
-              latitude: intersection.lat,
-              longitude: intersection.lon,
-            }}
-            title="Intersection"
-            description="Traffic signal or crossing"
-          >
-            <Image
-              source={{ uri: 'https://img.icons8.com/ios-filled/50/ffcc00/marker.png' }}
-              style={{ width: 30, height: 30 }}
-            />
-          </Marker>
-        ))}
+           {intersections.map((intersection) => (
+              <Marker
+                 key={intersection.id}
+                 coordinate={{
+                    latitude: intersection.lat,
+                    longitude: intersection.lon,
+                 }}
+                 title='Intersection'
+                 description='Traffic signal or crossing'
+              >
+                 <Image
+                    source={{
+                       uri: 'https://img.icons8.com/ios-filled/50/ffcc00/marker.png',
+                    }}
+                    style={{ width: 30, height: 30 }}
+                 />
+              </Marker>
+           ))}
 
-        {reports.map((report) => (
-          <Marker
-            key={report.id}
-            coordinate={{
-              latitude: report.latitude,
-              longitude: report.longitude,
-            }}
-            title={report.report_type === 'obstacle' ? 'Obstacle' : 'Construction'}
-            description={report.description}
-            pinColor={report.report_type === 'obstacle' ? 'red' : 'orange'}
-          />
-        ))}
-      </MapView>
+           {reports.map((report) => (
+              <Marker
+                 key={report.id}
+                 coordinate={{
+                    latitude: report.latitude,
+                    longitude: report.longitude,
+                 }}
+              >
+                 {report.image_url ? (
+                    <Image
+                       source={{ uri: report.image_url }}
+                       style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 20,
+                          borderWidth: 2,
+                          borderColor: '#fff',
+                       }}
+                       resizeMode='cover'
+                    />
+                 ) : (
+                    <View
+                       style={{
+                          backgroundColor: '#ef4444',
+                          width: 20,
+                          height: 20,
+                          borderRadius: 10,
+                          borderWidth: 2,
+                          borderColor: '#fff',
+                       }}
+                    />
+                 )}
+                 <Callout tooltip>
+                    <View style={styles.calloutContainer}>
+                       <View style={styles.calloutContent}>
+                          {report.image_url && (
+                             <Image
+                                source={{ uri: report.image_url }}
+                                style={{
+                                   width: 40,
+                                   height: 40,
+                                   borderRadius: 20,
+                                   borderWidth: 2,
+                                   borderColor: '#fff',
+                                }}
+                                resizeMode='cover'
+                             />
+                          )}
+                          <Text style={styles.calloutTitle}>{report.type}</Text>
+                          <Text style={styles.calloutDescription}>
+                             {report.description || 'None'}
+                          </Text>
+                       </View>
+                    </View>
+                 </Callout>
+              </Marker>
+           ))}
+        </MapView>
 
-      <Pressable
-        style={styles.mapTypeButton}
-        onPress={() => setMapType(prev => prev === 'standard' ? 'hybrid' : 'standard')}
-      >
-        {mapType === 'standard' ? (
-          <Layers size={24} color="#fff" />
-        ) : (
-          <Map size={24} color="#fff" />
-        )}
-      </Pressable>
+        <Pressable
+           style={styles.mapTypeButton}
+           onPress={() =>
+              setMapType((prev) =>
+                 prev === 'standard' ? 'hybrid' : 'standard'
+              )
+           }
+        >
+           {mapType === 'standard' ? (
+              <Layers size={24} color='#fff' />
+           ) : (
+              <Map size={24} color='#fff' />
+           )}
+        </Pressable>
 
+        <Pressable
+           style={[styles.mapTypeButton, { top: 80 }]}
+           onPress={centerOnUser}
+        >
+           <Text style={styles.buttonIcon}>⌖</Text>
+        </Pressable>
 
-      <Pressable 
-        style={[styles.mapTypeButton, { top: 80 }]}
-        onPress={centerOnUser}
-      >
-        <Text style={styles.buttonIcon}>⌖</Text>
-      </Pressable>
+        <Pressable
+           style={[
+              styles.toggleButton,
+              isReportMode && styles.toggleButtonActive,
+           ]}
+           onPress={toggleReportMode}
+        >
+           <Text style={styles.toggleButtonText}>
+              {isReportMode ? 'Exit Report Mode' : 'Enter Report Mode'}
+           </Text>
+        </Pressable>
 
-      <Pressable
-        style={[styles.toggleButton, isReportMode && styles.toggleButtonActive]}
-        onPress={toggleReportMode}
-      >
-        <Text style={styles.toggleButtonText}>
-          {isReportMode ? 'Exit Report Mode' : 'Enter Report Mode'}
-        </Text>
-      </Pressable>
-
-      <Modalize
-        ref={modalizeRef}
-        adjustToContentHeight
-        onClosed={() => setModalVisible(false)}
-      >
-        <View style={styles.modalContent}>
-          <ReportForm
-            latitude={selectedLocation?.latitude.toString() || ''}
-            longitude={selectedLocation?.longitude.toString() || ''}
-            onReportSubmitted={handleReportSubmitted}
-          />
-          <Pressable onPress={closeModal} style={styles.closeButton}>
-            <Text style={styles.closeButtonText}>Close</Text>
-          </Pressable>
-        </View>
-      </Modalize>
-    </View>
+        <Modalize
+           ref={modalizeRef}
+           adjustToContentHeight
+           onClosed={() => setModalVisible(false)}
+        >
+           <View style={styles.modalContent}>
+              <ReportForm
+                 latitude={selectedLocation?.latitude.toString() || ''}
+                 longitude={selectedLocation?.longitude.toString() || ''}
+                 onReportSubmitted={handleReportSubmitted}
+              />
+              <Pressable onPress={closeModal} style={styles.closeButton}>
+                 <Text style={styles.closeButtonText}>Close</Text>
+              </Pressable>
+           </View>
+        </Modalize>
+     </View>
   );
 }
 
@@ -603,12 +658,12 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   modalContent: {
-    paddingHorizontal: 20, // Added horizontal padding
-    paddingVertical: 10,   // Added vertical padding
-    backgroundColor: '#fff', // Optional, ensures consistent background
+    paddingHorizontal: 20,
+    paddingVertical: 10, 
+    backgroundColor: '#fff',
   },
   closeButton: {
-    marginTop: 20,          // Increased margin to separate from form
+    marginTop: 20,
     alignItems: 'center',
   },
   closeButtonText: {
@@ -620,6 +675,35 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 24,
     fontWeight: 'bold',
+  },
+  calloutContainer: {
+    width: 200,
+    backgroundColor: 'white',
+    borderRadius: 8,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  calloutImage: {
+    width: '100%',
+    height: 120,
+    resizeMode: 'cover',
+  },
+  calloutContent: {
+    padding: 10,
+  },
+  calloutTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+    color: 'black',
+  },
+  calloutDescription: {
+    fontSize: 14,
+    color: '#666',
   },
 });
 
