@@ -112,7 +112,7 @@ function processSteps(steps: any[]): RouteStep[] {
     const duration = calculateWalkingDuration(distance, 0, intersectionCount);
 
     return {
-      text: step.maneuver?.instruction || 'Continue',
+      text: step.maneuver?.instruction,
       distance: distance,
       duration: duration
     };
