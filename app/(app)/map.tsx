@@ -27,8 +27,8 @@ export default function Home() {
     longitude: number;
   } | null>(null);
   const [currentLocation, setCurrentLocation] = useState({
-    latitude: 42,
-    longitude: -73.6,
+    latitude: 42.859769, 
+    longitude: -74.000300,
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });

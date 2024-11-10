@@ -39,8 +39,8 @@ export default function MapboxView({ onLocationSelect, initialLocation }: Mapbox
         style={styles.map}
         provider={PROVIDER_DEFAULT}
         initialRegion={{
-          latitude: initialLocation?.latitude || 37.78825,
-          longitude: initialLocation?.longitude || -122.4324,
+          latitude: initialLocation?.latitude || 42.859769,
+          longitude: initialLocation?.longitude || -74.000300,
           latitudeDelta: 0.0922,
           longitudeDelta: 0.0421,
         }}
