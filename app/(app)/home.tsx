@@ -2,10 +2,8 @@ import { View, Text, Pressable, StyleSheet, Image, Modal } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
 import MapView, { Marker } from 'react-native-maps';
 import { useState, useEffect } from 'react';
-import * as Location from 'expo-location';
-import { supabase } from '../lib/supabase';
 import { useLocationContext } from '../../contexts/LocationContext';
-import ReportForm from '../../components/ReportForm';
+import { LocationSharing } from '../../components/LocationSharing';
 
 export default function Home() {
   const { user, signOut } = useAuth();
@@ -122,11 +120,16 @@ export default function Home() {
 
   useEffect(() => {
     if (location) {
-      setCurrentLocation({
+      const newLocation = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
         latitudeDelta: 0.0922,
         longitudeDelta: 0.0421,
+      };
+      setCurrentLocation(newLocation);
+      setSelectedLocation({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
       });
     }
   }, [location]);
@@ -167,6 +170,7 @@ export default function Home() {
   const handleLocationSelect = (event: any) => {
     if (!isReportMode) return;
 
+  const handleMapPress = (event: any) => {
     const coords = event.nativeEvent.coordinate;
     setSelectedLocation(coords);
     setModalVisible(true);

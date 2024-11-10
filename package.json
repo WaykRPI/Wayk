@@ -39,6 +39,7 @@
     "react-dom": "18.2.0",
     "react-native": "0.74.5",
     "react-native-gesture-handler": "~2.16.1",
+    "react-native-map-clustering": "^3.4.2",
     "react-native-mapbox-gl": "^5.2.1-deprecated",
     "react-native-maps": "1.14.0",
     "react-native-reanimated": "~3.10.1",
