@@ -1,13 +1,24 @@
-import { View, Text, Pressable, StyleSheet, Image, Modal, Dimensions } from 'react-native';
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  Image,
+  Animated,
+  Dimensions,
+  PanResponder,
+} from 'react-native';
+import { useAuth } from '../../hooks/useAuth';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import MapView, { Marker, PROVIDER_GOOGLE, MapType, Camera } from 'react-native-maps';
-import React, { useState, useEffect, useRef } from 'react';
 import * as Location from 'expo-location';
 import { supabase } from '../lib/supabase';
 import { useLocationContext } from '../../contexts/LocationContext';
 import ReportForm from '../../components/ReportForm';
 import Svg, { Path } from 'react-native-svg';
 import { Map, Layers } from 'lucide-react-native';
+import { Modalize } from 'react-native-modalize';
 
 const ULTRA_HIGH_FREQUENCY = 5; // 5ms update interval
 const MAX_HEADING_DELTA = 2; // Maximum heading change per frame
@@ -47,14 +58,27 @@ export default function Home() {
     latitude: number;
     longitude: number;
   } | null>(null);
-  
   const [currentLocation, setCurrentLocation] = useState({
     latitude: 37.78825,
     longitude: -122.4324,
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
+  const screenHeight = Dimensions.get('window').height;
+  const bottomSheetHeight = screenHeight * 0.5; // Adjust as needed
 
+  const translateY = useRef(new Animated.Value(bottomSheetHeight)).current;
+   const modalizeRef = useRef<Modalize>(null);
+
+  const openModal = () => {
+    modalizeRef.current?.open();
+  };
+
+  const closeModal = () => {
+    modalizeRef.current?.close();
+  };
+
+ 
   const [mapType, setMapType] = useState<MapType>('standard');
   const [userHeading, setUserHeading] = useState(0);
   const [camera, setCamera] = useState<Camera>({
@@ -174,20 +198,39 @@ export default function Home() {
           distanceInterval: 0,
           timeInterval: ULTRA_HIGH_FREQUENCY,
         },
-        (location) => {
-          lastLocation.current = location;
+        async (newLocation) => {
+          const { latitude, longitude } = newLocation.coords;
+
+          if (user) {
+            const { data: existingUser } = await supabase
+              .from('active_users')
+              .select('id')
+              .eq('user_id', user.id)
+              .single();
+
+            if (existingUser) {
+              await supabase
+                .from('active_users')
+                .update({
+                  latitude,
+                  longitude,
+                })
+                .eq('user_id', user.id);
+            } else {
+              await supabase
+                .from('active_users')
+                .insert({
+                  user_id: user.id,
+                  latitude,
+                  longitude,
+                  user_email: user.email
+                });
+            }
+          }
         }
       );
 
-      // High-frequency update loop
-      const updateLoop = () => {
-        if (lastLocation.current) {
-          handleLocationUpdate(lastLocation.current);
-        }
-        animationFrameId.current = requestAnimationFrame(updateLoop);
-      };
-
-      updateLoop();
+      setWatchLocation(watchId);
     };
 
     startTracking();
@@ -231,9 +274,9 @@ export default function Home() {
           setActiveUsers(current => {
             const activeTimeout = new Date();
             activeTimeout.setMinutes(activeTimeout.getMinutes() - 5);
-            
-            const filtered = current.filter(u => 
-              new Date(u.last_updated) > activeTimeout && 
+
+            const filtered = current.filter(u =>
+              new Date(u.last_updated) > activeTimeout &&
               u.user_id !== user?.id
             );
 
@@ -256,6 +299,24 @@ export default function Home() {
       subscription.unsubscribe();
     };
   }, [user]);
+  useEffect(() => {
+    if (location) {
+      setCurrentLocation({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        latitudeDelta: 0.0922,
+        longitudeDelta: 0.0421,
+      });
+
+      setCamera(prev => ({
+        ...prev,
+        center: {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        }
+      }));
+    }
+  }, [location]);
 
   const fetchIntersections = async (latitude: number, longitude: number) => {
     const query = `
@@ -294,8 +355,9 @@ export default function Home() {
     if (!isReportMode) return;
     const coords = event.nativeEvent.coordinate;
     setSelectedLocation(coords);
-    setModalVisible(true);
+    openModal(); 
   };
+  
 
   const handleReportSubmitted = () => {
     fetchReports();
@@ -377,7 +439,7 @@ export default function Home() {
             />
           </Marker>
         )}
-        
+
         {intersections.map((intersection) => (
           <Marker
             key={intersection.id}
@@ -394,7 +456,7 @@ export default function Home() {
             />
           </Marker>
         ))}
-        
+
         {reports.map((report) => (
           <Marker
             key={report.id}
@@ -409,8 +471,8 @@ export default function Home() {
         ))}
       </MapView>
 
-      <Pressable 
-        style={styles.mapTypeButton} 
+      <Pressable
+        style={styles.mapTypeButton}
         onPress={() => setMapType(prev => prev === 'standard' ? 'hybrid' : 'standard')}
       >
         {mapType === 'standard' ? (
@@ -420,8 +482,8 @@ export default function Home() {
         )}
       </Pressable>
 
-      <Pressable 
-        style={[styles.toggleButton, isReportMode && styles.toggleButtonActive]} 
+      <Pressable
+        style={[styles.toggleButton, isReportMode && styles.toggleButtonActive]}
         onPress={toggleReportMode}
       >
         <Text style={styles.toggleButtonText}>
@@ -429,25 +491,22 @@ export default function Home() {
         </Text>
       </Pressable>
 
-      <Modal
-        visible={isModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setModalVisible(false)}
+      <Modalize
+        ref={modalizeRef}
+        adjustToContentHeight
+        onClosed={() => setModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <ReportForm
-              latitude={selectedLocation?.latitude.toString() || ''}
-              longitude={selectedLocation?.longitude.toString() || ''}
-              onReportSubmitted={handleReportSubmitted}
-            />
-            <Pressable onPress={() => setModalVisible(false)} style={styles.closeButton}>
-              <Text style={styles.closeButtonText}>Close</Text>
-            </Pressable>
-          </View>
+        <View style={styles.modalContent}>
+          <ReportForm
+            latitude={selectedLocation?.latitude.toString() || ''}
+            longitude={selectedLocation?.longitude.toString() || ''}
+            onReportSubmitted={handleReportSubmitted}
+          />
+          <Pressable onPress={closeModal} style={styles.closeButton}>
+            <Text style={styles.closeButtonText}>Close</Text>
+          </Pressable>
         </View>
-      </Modal>
+      </Modalize>
     </View>
   );
 }
@@ -490,25 +549,28 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  bottomSheet: {
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  dragIndicator: {
+    width: 40,
+    height: 5,
+    backgroundColor: '#ccc',
+    alignSelf: 'center',
+    marginVertical: 10,
   },
   modalContent: {
-    width: '90%',
-    padding: 20,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 5,
+    paddingHorizontal: 20, // Added horizontal padding
+    paddingVertical: 10,   // Added vertical padding
+    backgroundColor: '#fff', // Optional, ensures consistent background
   },
   closeButton: {
-    marginTop: 10,
+    marginTop: 20,          // Increased margin to separate from form
     alignItems: 'center',
   },
   closeButtonText: {

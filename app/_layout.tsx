@@ -1,19 +1,23 @@
 import { Stack, SplashScreen } from 'expo-router';
 import { useEffect } from 'react';
+import { StyleSheet } from 'react-native';
 import { Colors } from '../constants/Colors';
 import { AuthProvider, useAuth } from '../hooks/useAuth';
 import { LocationProvider } from '../contexts/LocationContext';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   return (
+     <GestureHandlerRootView style={styles.container}>
     <AuthProvider>
       <LocationProvider>
         <RootLayoutNav />
       </LocationProvider>
     </AuthProvider>
+      </GestureHandlerRootView>
   );
 }
 
@@ -64,3 +68,8 @@ function RootLayoutNav() {
     </Stack>
   );
 }
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});
