@@ -18,15 +18,15 @@ import { supabase } from '../lib/supabase';
 import { useLocationContext } from '../../contexts/LocationContext';
 import ReportForm from '../../components/ReportForm';
 import Svg, { Path } from 'react-native-svg';
-import { Map, Layers } from 'lucide-react-native';
+import { Map, Layers, Navigation2 } from 'lucide-react-native';
 import { Modalize } from 'react-native-modalize';
 import { Float } from 'react-native/Libraries/Types/CodegenTypes';
 
-const ANIMATION_INTERVAL = 16; // ~60fps
-const SERVER_UPDATE_INTERVAL = 1000; // Update server every second
-const INTERPOLATION_FACTOR = 0.15; // Smooth interpolation factor
-const USER_MARKER_SIZE = 32; // Larger size for user marker
-const OTHER_MARKER_SIZE = 24; // Original size for other users
+const ANIMATION_INTERVAL = 16;
+const SERVER_UPDATE_INTERVAL = 1000;
+const INTERPOLATION_FACTOR = 0.15;
+const USER_MARKER_SIZE = 32;
+const OTHER_MARKER_SIZE = 24;
 
 const UserMarker = ({ rotation = 0, color = '#0ea5e9', size = OTHER_MARKER_SIZE }) => (
   <Svg height={size} width={size} viewBox="0 0 24 24" style={{ transform: [{ rotate: `${rotation}deg` }] }}>
@@ -65,7 +65,29 @@ export default function Home() {
   const mapRef = useRef<MapView>(null);
   const animationFrameId = useRef<number | null>(null);
   const lastServerUpdate = useRef(Date.now());
-  
+  const [isUserInteracting, setIsUserInteracting] = useState(false);
+  const [isFollowingUser, setIsFollowingUser] = useState(true);
+
+  const StatusIndicator = ({ isFollowing, isReportMode }: { isFollowing: boolean; isReportMode: boolean }) => {
+    let status = 'Manual Control';
+    let bgColor = '#64748b';
+
+    if (isFollowing) {
+      status = 'Following';
+      bgColor = '#10b981';
+    }
+    if (isReportMode) {
+      status = 'Report Mode';
+      bgColor = '#ef4444';
+    }
+
+    return (
+      <View style={[styles.statusContainer, { backgroundColor: bgColor }]}>
+        <Text style={styles.statusText}>{status}</Text>
+      </View>
+    );
+  };
+
   const targetLocation = useRef({
     latitude: 37.78825,
     longitude: -122.4324,
@@ -82,27 +104,15 @@ export default function Home() {
     latitude: number;
     longitude: number;
   } | null>(null);
+
   const [currentLocation, setCurrentLocation] = useState({
     latitude: 37.78825,
     longitude: -122.4324,
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
-  const screenHeight = Dimensions.get('window').height;
-  const bottomSheetHeight = screenHeight * 0.5; // Adjust as needed
 
-  const translateY = useRef(new Animated.Value(bottomSheetHeight)).current;
-   const modalizeRef = useRef<Modalize>(null);
-
-  const openModal = () => {
-    modalizeRef.current?.open();
-  };
-
-  const closeModal = () => {
-    modalizeRef.current?.close();
-  };
-
- 
+  const modalizeRef = useRef<Modalize>(null);
   const [mapType, setMapType] = useState<MapType>('standard');
   const [camera, setCamera] = useState<Camera>({
     center: {
@@ -118,11 +128,18 @@ export default function Home() {
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
   const [intersections, setIntersections] = useState<any[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
-  const [isModalVisible, setModalVisible] = useState(false);
   const [isReportMode, setReportMode] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isImageModalVisible, setIsImageModalVisible] = useState(false);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+
+  const openModal = () => {
+    modalizeRef.current?.open();
+  };
+
+  const closeModal = () => {
+    modalizeRef.current?.close();
+  };
 
   const interpolateValue = (current: number, target: number, factor: number): number => {
     return current + (target - current) * factor;
@@ -139,26 +156,33 @@ export default function Home() {
     return normalizeHeading(current + diff * factor);
   };
 
-  const centerOnUser = () => {
-    const centerLatitude = currentAnimatedLocation.current.latitude;
-    const centerLongitude = currentAnimatedLocation.current.longitude;
-    const heading = currentAnimatedLocation.current.heading;
+  const toggleControlMode = () => {
+    setIsFollowingUser(prev => {
+      const newFollowingState = !prev;
+      if (newFollowingState) {
+        const centerLatitude = currentAnimatedLocation.current.latitude;
+        const centerLongitude = currentAnimatedLocation.current.longitude;
+        const heading = currentAnimatedLocation.current.heading;
 
-    mapRef.current?.animateCamera(
-      {
-        center: {
-          latitude: centerLatitude,
-          longitude: centerLongitude,
-        },
-        heading: heading,
-        pitch: 60,
-        zoom: 17,
-        altitude: 1000,
-      },
-      {
-        duration: 0,
+        mapRef.current?.animateCamera(
+          {
+            center: {
+              latitude: centerLatitude,
+              longitude: centerLongitude,
+            },
+            heading: heading,
+            pitch: 60,
+            zoom: 17,
+            altitude: 1000,
+          },
+          {
+            duration: 500,
+          }
+        );
       }
-    );
+      return newFollowingState;
+    });
+    setReportMode(false);
   };
 
   const animate = () => {
@@ -177,40 +201,37 @@ export default function Home() {
       heading: newHeading,
     };
 
-    // Always center on user
-    centerOnUser();
+    // Only update camera if in following mode
+    if (isFollowingUser && !isReportMode) {
+      setCamera(prev => ({
+        ...prev,
+        center: {
+          latitude: newLat,
+          longitude: newLon,
+        },
+        heading: newHeading,
+      }));
+    }
 
-    setCamera(prev => ({
-      ...prev,
-      center: {
-        latitude: newLat,
-        longitude: newLon,
-      },
-      heading: newHeading,
-    }));
-
-    // Update current location for markers
+    // Always update current location for marker position
     setCurrentLocation(prev => ({
       ...prev,
       latitude: newLat,
       longitude: newLon,
     }));
 
-    // Continue the animation loop
     animationFrameId.current = requestAnimationFrame(animate);
   };
 
   const handleLocationUpdate = async (location: Location.LocationObject) => {
     const { latitude, longitude, heading } = location.coords;
     
-    // Update target location
     targetLocation.current = {
       latitude,
       longitude,
       heading: heading ?? targetLocation.current.heading,
     };
 
-    // Check if we should update the server
     const now = Date.now();
     if (now - lastServerUpdate.current >= SERVER_UPDATE_INTERVAL && user) {
       lastServerUpdate.current = now;
@@ -246,7 +267,12 @@ export default function Home() {
     }
   };
 
-  // Set up location tracking and animation
+  const handleMapMovement = () => {
+    if (isUserInteracting && !isReportMode) {
+      setIsFollowingUser(false);
+    }
+  };
+
   useEffect(() => {
     const startTracking = async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -260,11 +286,9 @@ export default function Home() {
           distanceInterval: 0,
           timeInterval: ANIMATION_INTERVAL,
         },
-
         handleLocationUpdate
       );
 
-      // Start the animation loop
       animationFrameId.current = requestAnimationFrame(animate);
 
       return () => {
@@ -285,7 +309,6 @@ export default function Home() {
     };
   }, [user]);
 
-  // Initial fetch of active users
   useEffect(() => {
     const fetchActiveUsers = async () => {
       const { data, error } = await supabase
@@ -298,7 +321,6 @@ export default function Home() {
     fetchActiveUsers();
   }, []);
 
-  // Subscribe to active users changes
   useEffect(() => {
     const subscription = supabase
       .channel('active_users')
@@ -338,6 +360,7 @@ export default function Home() {
       subscription.unsubscribe();
     };
   }, [user]);
+
   useEffect(() => {
     if (location) {
       setCurrentLocation({
@@ -395,18 +418,18 @@ export default function Home() {
     if (!isReportMode) return;
     const coords = event.nativeEvent.coordinate;
     setSelectedLocation(coords);
-    openModal(); 
+    openModal();
   };
-  
 
   const handleReportSubmitted = () => {
     fetchReports();
     setSelectedLocation(null);
-    setModalVisible(false);
+    closeModal();
   };
 
   const toggleReportMode = () => {
-    setReportMode(!isReportMode);
+    setReportMode(prev => !prev);
+    setIsFollowingUser(false);
     setSelectedLocation(null);
   };
 
@@ -562,10 +585,20 @@ export default function Home() {
         </Pressable>
 
         <Pressable
-           style={[styles.mapTypeButton, { top: 80 }]}
-           onPress={centerOnUser}
+           style={[
+          styles.modeToggleButton, 
+          isFollowingUser && styles.modeToggleButtonActive
+        ]}
+           onPress={toggleControlMode}
         >
-           <Text style={styles.buttonIcon}>⌖</Text>
+           <Navigation2 
+          size={24} 
+          color="#fff" 
+          style={{ 
+            transform: [{ rotate: isFollowingUser ? '0deg' : '45deg' }],
+            opacity: isFollowingUser ? 1 : 0.8
+          }}
+        />
         </Pressable>
 
         <Pressable
@@ -696,6 +729,22 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 5,
   },
+  modeToggleButton: {
+    position: 'absolute',
+    top: 80,
+    right: 20,
+    backgroundColor: '#64748b',
+    borderRadius: 8,
+    padding: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  modeToggleButtonActive: {
+    backgroundColor: '#10b981',
+  },
   toggleButton: {
     position: 'absolute',
     bottom: 20,
@@ -720,10 +769,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  bottomSheet: {
-    position: 'absolute',
-    bottom: 0,
-    width: '100%',
+  modalContent: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -870,6 +918,25 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     flex: 1,
   },
+  statusContainer: {
+    position: 'absolute',
+    top: 40,
+    left: '50%',
+    transform: [{ translateX: -50 }],
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  statusText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
 });
 
 const mapStyle = [
@@ -965,3 +1032,4 @@ const mapStyle = [
     stylers: [{ color: '#80b3ff' }],
   },
 ];
+
