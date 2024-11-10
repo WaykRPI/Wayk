@@ -9,6 +9,7 @@ import {
   PanResponder,
   Modal,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { useAuth } from "../../hooks/useAuth";
 import { useState, useEffect, useRef } from "react";
@@ -18,6 +19,7 @@ import MapView, {
   MapType,
   Camera,
   Callout,
+  Polyline,
 } from "react-native-maps";
 import * as Location from "expo-location";
 import { supabase } from "../lib/supabase";
@@ -27,6 +29,9 @@ import Svg, { Path } from "react-native-svg";
 import { Map, Layers, Navigation2 } from "lucide-react-native";
 import { Modalize } from "react-native-modalize";
 import { Float } from "react-native/Libraries/Types/CodegenTypes";
+import { getWalkingDirections, RouteData } from '../../services/directionService';
+import { DirectionsPanel } from '../../components/DirectionsPanel';
+
 
 const ANIMATION_INTERVAL = 16;
 const SERVER_UPDATE_INTERVAL = 1000;
@@ -82,6 +87,39 @@ export default function Home() {
   const lastServerUpdate = useRef(Date.now());
   const [isUserInteracting, setIsUserInteracting] = useState(false);
   const [isFollowingUser, setIsFollowingUser] = useState(true);
+  const [isRoutingMode, setIsRoutingMode] = useState(false);
+  const [destination, setDestination] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [route, setRoute] = useState<RouteData | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showDirections, setShowDirections] = useState(false);
+
+  const handleMapPress = async (event: any) => {
+    if (isRoutingMode && location) {
+      const { latitude, longitude } = event.nativeEvent.coordinate;
+      setDestination({ latitude, longitude });
+      
+      try {
+        setIsLoading(true);
+        const routeData = await getWalkingDirections(
+          location.coords.latitude,
+          location.coords.longitude,
+          latitude,
+          longitude
+        );
+        setRoute(routeData);
+        setShowDirections(true);
+      } catch (error) {
+        console.error('Error:', error);
+        // Handle error appropriately
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
 
   const StatusIndicator = ({
     isFollowing,
@@ -639,6 +677,21 @@ export default function Home() {
             )}
           </Marker>
         ))}
+                {destination && (
+          <Marker
+            coordinate={destination}
+            title="Destination"
+            pinColor="blue"
+          />
+        )}
+
+        {route && (
+          <Polyline
+            coordinates={route.coordinates}
+            strokeWidth={4}
+            strokeColor="#2563eb"
+          />
+        )}
       </MapView>
       <StatusIndicator
         isFollowing={isFollowingUser}
@@ -775,11 +828,69 @@ export default function Home() {
           </View>
         </Pressable>
       </Modal>
+      <Pressable
+        style={[
+          styles.routingButton,
+          isRoutingMode && styles.routingButtonActive
+        ]}
+        onPress={() => {
+          setIsRoutingMode(!isRoutingMode);
+          if (!isRoutingMode) {
+            setDestination(null);
+            setRoute(null);
+            setShowDirections(false);
+          }
+        }}
+      >
+        <Text style={styles.routingButtonText}>
+          {isRoutingMode ? 'Cancel' : 'Set Walking Route'}
+        </Text>
+      </Pressable>
+
+      {isLoading && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2563eb" />
+        </View>
+      )}
+
+      {showDirections && route && (
+        <DirectionsPanel 
+          route={route} 
+          onClose={() => setShowDirections(false)}
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  routingButton: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  routingButtonActive: {
+    backgroundColor: '#dc2626',
+  },
+  routingButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  loadingContainer: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -20 }, { translateY: -20 }],
+  },
   mapTypeButton: {
     position: "absolute",
     top: 20,
