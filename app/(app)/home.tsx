@@ -1,6 +1,6 @@
 import { View, Text, Pressable, StyleSheet, Image, Modal } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE, MapType } from 'react-native-maps';
 import { useState, useEffect } from 'react';
 import * as Location from 'expo-location';
 import { supabase } from '../lib/supabase';
@@ -14,16 +14,30 @@ export default function Home() {
     latitude: number;
     longitude: number;
   } | null>(null);
+  
   const [currentLocation, setCurrentLocation] = useState({
     latitude: 37.78825,
     longitude: -122.4324,
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
+
+  const [mapType, setMapType] = useState<MapType>('standard');
+  const [camera, setCamera] = useState({
+    center: {
+      latitude: 37.78825,
+      longitude: -122.4324,
+    },
+    pitch: 85, // Set closer to 90 for maximum tilt effect
+    altitude: 250, // Lower altitude for a closer-to-ground perspective
+    heading: 0,
+    zoom: 17, // Increase zoom level to get a more focused view
+  });
+
   const mapStyle = [
     {
       elementType: 'geometry',
-      stylers: [{ color: '#1d1d1d' }], // Black background for general map area
+      stylers: [{ color: '#1d1d1d' }],
     },
     {
       elementType: 'labels.icon',
@@ -31,89 +45,88 @@ export default function Home() {
     },
     {
       elementType: 'labels.text.fill',
-      stylers: [{ color: '#80b3ff' }], // Light blue text for readability
+      stylers: [{ color: '#80b3ff' }],
     },
     {
       elementType: 'labels.text.stroke',
-      stylers: [{ color: '#1d1d1d' }], // Match background for subtle effect
+      stylers: [{ color: '#1d1d1d' }],
     },
     {
       featureType: 'administrative',
       elementType: 'geometry',
-      stylers: [{ color: '#2e2e2e' }], // Dark grey for administrative boundaries
+      stylers: [{ color: '#2e2e2e' }],
     },
     {
       featureType: 'administrative.country',
       elementType: 'labels.text.fill',
-      stylers: [{ color: '#6699cc' }], // Medium blue for country labels
+      stylers: [{ color: '#6699cc' }],
     },
     {
       featureType: 'administrative.locality',
       elementType: 'labels.text.fill',
-      stylers: [{ color: '#80b3ff' }], // Light blue for locality labels
+      stylers: [{ color: '#80b3ff' }],
     },
     {
       featureType: 'poi',
       elementType: 'labels.text.fill',
-      stylers: [{ color: '#5a8fc1' }], // Softer blue for points of interest
+      stylers: [{ color: '#5a8fc1' }],
     },
     {
       featureType: 'poi.park',
       elementType: 'geometry',
-      stylers: [{ color: '#1a1a1a' }], // Darker black for parks
+      stylers: [{ color: '#1a1a1a' }],
     },
     {
       featureType: 'poi.park',
       elementType: 'labels.text.fill',
-      stylers: [{ color: '#4a90e2' }], // Medium blue for park labels
+      stylers: [{ color: '#4a90e2' }],
     },
     {
       featureType: 'road',
       elementType: 'geometry.fill',
-      stylers: [{ color: '#2e2e2e' }], // Dark grey for roads
+      stylers: [{ color: '#2e2e2e' }],
     },
     {
       featureType: 'road',
       elementType: 'labels.text.fill',
-      stylers: [{ color: '#6699cc' }], // Medium blue for road labels
+      stylers: [{ color: '#6699cc' }],
     },
     {
       featureType: 'road.arterial',
       elementType: 'geometry',
-      stylers: [{ color: '#3a3a3a' }], // Dark grey for arterial roads
+      stylers: [{ color: '#3a3a3a' }],
     },
     {
       featureType: 'road.highway',
       elementType: 'geometry',
-      stylers: [{ color: '#4a4a4a' }], // Slightly lighter grey for highways
+      stylers: [{ color: '#4a4a4a' }],
     },
     {
       featureType: 'road.highway.controlled_access',
       elementType: 'geometry',
-      stylers: [{ color: '#5b5b5b' }], // Light grey for controlled-access highways
+      stylers: [{ color: '#5b5b5b' }],
     },
     {
       featureType: 'road.local',
       elementType: 'labels.text.fill',
-      stylers: [{ color: '#4a90e2' }], // Light blue for local road labels
+      stylers: [{ color: '#4a90e2' }],
     },
     {
       featureType: 'transit',
       elementType: 'labels.text.fill',
-      stylers: [{ color: '#5a8fc1' }], // Softer blue for transit labels
+      stylers: [{ color: '#5a8fc1' }],
     },
     {
       featureType: 'water',
       elementType: 'geometry',
-      stylers: [{ color: '#1c3f5f' }], // Deep blue for water bodies
+      stylers: [{ color: '#1c3f5f' }],
     },
     {
       featureType: 'water',
       elementType: 'labels.text.fill',
-      stylers: [{ color: '#80b3ff' }], // Light blue for water labels
+      stylers: [{ color: '#80b3ff' }],
     },
   ];
-  
 
   const [intersections, setIntersections] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
@@ -128,6 +141,15 @@ export default function Home() {
         latitudeDelta: 0.0922,
         longitudeDelta: 0.0421,
       });
+      
+      // Update camera center when location changes
+      setCamera(prev => ({
+        ...prev,
+        center: {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        }
+      }));
     }
   }, [location]);
 
@@ -180,19 +202,28 @@ export default function Home() {
 
   const toggleReportMode = () => {
     setReportMode(!isReportMode);
-    setSelectedLocation(null); // Clear selected location if toggling off
+    setSelectedLocation(null);
+  };
+
+  const toggleMapType = () => {
+    setMapType(prev => prev === 'standard' ? 'hybrid' : 'standard');
   };
 
   return (
     <View style={{ flex: 1 }}>
       <MapView
         style={{ flex: 1 }}
+        provider={PROVIDER_GOOGLE}
         initialRegion={currentLocation}
         showsUserLocation
         showsMyLocationButton
         showsCompass
+        showsBuildings={true}
+        showsTraffic={true}
+        mapType={mapType}
         onPress={handleLocationSelect}
-         customMapStyle={mapStyle}  
+        customMapStyle={mapStyle}
+        camera={camera}
       >
         {selectedLocation && (
           <Marker
@@ -236,8 +267,23 @@ export default function Home() {
         ))}
       </MapView>
 
-      <Pressable style={[styles.toggleButton, isReportMode && styles.toggleButtonActive]} onPress={toggleReportMode}>
-        <Text style={styles.toggleButtonText}>{isReportMode ? 'Exit Report Mode' : 'Enter Report Mode'}</Text>
+      {/* Camera Controls */}
+      <View style={styles.controlsContainer}>
+        <Pressable 
+          style={styles.controlButton}
+          onPress={toggleMapType}
+        >
+          <Text style={styles.controlButtonText}>Toggle Satellite</Text>
+        </Pressable>
+      </View>
+
+      <Pressable 
+        style={[styles.toggleButton, isReportMode && styles.toggleButtonActive]} 
+        onPress={toggleReportMode}
+      >
+        <Text style={styles.toggleButtonText}>
+          {isReportMode ? 'Exit Report Mode' : 'Enter Report Mode'}
+        </Text>
       </Pressable>
 
       <Modal
@@ -264,6 +310,29 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
+  controlsContainer: {
+    position: 'absolute',
+    top: 20,
+    right: 100,
+    backgroundColor: 'transparent',
+  },
+  controlButton: {
+    backgroundColor: '#0ea5e9',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  controlButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
   toggleButton: {
     position: 'absolute',
     bottom: 20,
