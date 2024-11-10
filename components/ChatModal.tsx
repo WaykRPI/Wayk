@@ -8,9 +8,13 @@ import {
   Pressable,
   KeyboardAvoidingView,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { Modalize } from 'react-native-modalize';
 import { supabase } from '../app/lib/supabase';
+import { Send, X } from 'lucide-react-native';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface Message {
   id: string;
@@ -18,7 +22,6 @@ interface Message {
   receiver_id: string;
   content: string;
   created_at: string;
-  read: boolean;
 }
 
 interface ChatModalProps {
@@ -94,33 +97,88 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     }
   };
 
-  const renderMessage = ({ item }: { item: Message }) => {
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    
+    // If message is from today, show only time
+    if (date.toDateString() === now.toDateString()) {
+      return date.toLocaleTimeString([], { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    }
+    
+    // If message is from this year, show date without year
+    if (date.getFullYear() === now.getFullYear()) {
+      return date.toLocaleDateString([], { 
+        month: 'short', 
+        day: 'numeric' 
+      });
+    }
+    
+    // Otherwise show full date
+    return date.toLocaleDateString([], { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  };
+
+  const renderMessage = ({ item, index }: { item: Message, index: number }) => {
     const isOwnMessage = item.sender_id === currentUser?.id;
+    const showDate = index === 0 || 
+      new Date(messages[index - 1].created_at).toDateString() !== 
+      new Date(item.created_at).toDateString();
 
     return (
-      <View
-        style={[
-          styles.messageContainer,
-          isOwnMessage ? styles.ownMessage : styles.otherMessage,
-        ]}
-      >
-        <Text style={styles.messageText}>{item.content}</Text>
-        <Text style={styles.messageTime}>
-          {new Date(item.created_at).toLocaleTimeString()}
-        </Text>
-      </View>
+      <>
+        {showDate && (
+          <View style={styles.dateContainer}>
+            <Text style={styles.dateText}>
+              {new Date(item.created_at).toLocaleDateString([], {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </Text>
+          </View>
+        )}
+        <View
+          style={[
+            styles.messageContainer,
+            isOwnMessage ? styles.ownMessage : styles.otherMessage,
+          ]}
+        >
+          <Text style={[
+            styles.messageText,
+            isOwnMessage ? styles.ownMessageText : styles.otherMessageText,
+          ]}>
+            {item.content}
+          </Text>
+          <Text style={[
+            styles.messageTime,
+            isOwnMessage ? styles.ownMessageTime : styles.otherMessageTime,
+          ]}>
+            {formatTime(item.created_at)}
+          </Text>
+        </View>
+      </>
     );
   };
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.container}
     >
       <View style={styles.header}>
         <Text style={styles.headerText}>
           Chat with {selectedUser?.user_email?.split('@')[0]}
         </Text>
+        <Pressable onPress={onClose} style={styles.closeButton}>
+          <X size={24} color="#0ea5e9" />
+        </Pressable>
       </View>
       
       <FlatList
@@ -131,6 +189,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
         style={styles.messagesList}
         onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
         onLayout={() => flatListRef.current?.scrollToEnd()}
+        contentContainerStyle={styles.messagesContent}
       />
 
       <View style={styles.inputContainer}>
@@ -140,9 +199,14 @@ export const ChatModal: React.FC<ChatModalProps> = ({
           onChangeText={setNewMessage}
           placeholder="Type a message..."
           multiline
+          maxLength={500}
         />
-        <Pressable style={styles.sendButton} onPress={sendMessage}>
-          <Text style={styles.sendButtonText}>Send</Text>
+        <Pressable 
+          style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]} 
+          onPress={sendMessage}
+          disabled={!newMessage.trim()}
+        >
+          <Send size={20} color="#fff" />
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -151,10 +215,13 @@ export const ChatModal: React.FC<ChatModalProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    maxHeight: 500,
+    height: SCREEN_HEIGHT * 0.9,
+    backgroundColor: '#fff',
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e5e5',
@@ -164,57 +231,90 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#0ea5e9',
   },
+  closeButton: {
+    padding: 5,
+  },
   messagesList: {
     flex: 1,
+  },
+  messagesContent: {
     padding: 10,
+  },
+  dateContainer: {
+    alignItems: 'center',
+    marginVertical: 10,
+  },
+  dateText: {
+    color: '#6b7280',
+    fontSize: 12,
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   messageContainer: {
     maxWidth: '80%',
     marginVertical: 5,
-    padding: 10,
-    borderRadius: 10,
+    padding: 12,
+    borderRadius: 16,
   },
   ownMessage: {
     alignSelf: 'flex-end',
     backgroundColor: '#0ea5e9',
+    borderBottomRightRadius: 4,
   },
   otherMessage: {
     alignSelf: 'flex-start',
-    backgroundColor: '#e5e5e5',
+    backgroundColor: '#f3f4f6',
+    borderBottomLeftRadius: 4,
   },
   messageText: {
-    color: '#fff',
     fontSize: 16,
+    lineHeight: 20,
+  },
+  ownMessageText: {
+    color: '#fff',
+  },
+  otherMessageText: {
+    color: '#1f2937',
   },
   messageTime: {
-    fontSize: 12,
+    fontSize: 11,
+    marginTop: 4,
+  },
+  ownMessageTime: {
     color: 'rgba(255, 255, 255, 0.7)',
-    marginTop: 5,
+  },
+  otherMessageTime: {
+    color: '#6b7280',
   },
   inputContainer: {
     flexDirection: 'row',
-    padding: 10,
+    padding: 12,
     borderTopWidth: 1,
     borderTopColor: '#e5e5e5',
+    backgroundColor: '#fff',
   },
   input: {
     flex: 1,
     borderWidth: 1,
     borderColor: '#e5e5e5',
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    marginRight: 10,
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginRight: 8,
     maxHeight: 100,
+    backgroundColor: '#f9fafb',
   },
   sendButton: {
     backgroundColor: '#0ea5e9',
-    borderRadius: 20,
-    paddingHorizontal: 20,
+    borderRadius: 24,
+    width: 44,
+    height: 44,
     justifyContent: 'center',
+    alignItems: 'center',
   },
-  sendButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
+  sendButtonDisabled: {
+    backgroundColor: '#93c5fd',
   },
 });
