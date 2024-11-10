@@ -128,6 +128,7 @@ export default function Home() {
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
   const [intersections, setIntersections] = useState<any[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
+  const [modalVisible, setModalVisible] = useState<boolean>(false);
   const [isReportMode, setReportMode] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isImageModalVisible, setIsImageModalVisible] = useState(false);
@@ -464,7 +465,7 @@ export default function Home() {
            onRegionChangeComplete={() => {
               // Force center on user when map is moved
               if (!isReportMode) {
-                 centerOnUser();
+                 //centerOnUser();
               }
            }}
         >
@@ -782,11 +783,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#ccc',
     alignSelf: 'center',
     marginVertical: 10,
-  },
-  modalContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 10, 
-    backgroundColor: '#fff',
   },
   closeButton: {
     marginTop: 20,
