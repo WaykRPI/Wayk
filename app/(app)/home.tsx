@@ -40,7 +40,7 @@ const SERVER_UPDATE_INTERVAL = 1000;
 const INTERPOLATION_FACTOR = 0.15;
 const USER_MARKER_SIZE = 32;
 const OTHER_MARKER_SIZE = 24;
-
+const [isSearchFocused, setIsSearchFocused] = useState(false);
 const UserMarker = ({
   rotation = 0,
   color = "#0ea5e9",
@@ -199,17 +199,13 @@ export default function Home() {
   
     return (
       <>
-        {/* Status indicator at the top */}
         <View style={styles.statusContainer}>
           <Text style={styles.statusText}>{status}</Text>
         </View>
         
-        {/* Search container positioned lower */}
         <View style={styles.searchContainer}>
           <PlacesSearch 
             onPlaceSelect={handlePlaceSelect}
-            onFocus={() => setIsSearchFocused(true)}
-            onBlur={() => setIsSearchFocused(false)}
           />
         </View>
       </>
@@ -625,14 +621,20 @@ export default function Home() {
         pitchEnabled={true}
         toolbarEnabled={false}
         onPanDrag={() => {
-          setIsUserInteracting(true);
-          handleMapMovement();
+          if (!isSearchFocused) {
+            setIsUserInteracting(true);
+            handleMapMovement();
+          }
         }}
         onTouchStart={() => {
-          setIsUserInteracting(true);
+          if (!isSearchFocused) {
+            setIsUserInteracting(true);
+          }
         }}
         onTouchEnd={() => {
-          setIsUserInteracting(false);
+          if (!isSearchFocused) {
+            setIsUserInteracting(false);
+          }
         }}
         onRegionChangeComplete={(region) => {
           if (isUserInteracting) {
@@ -1119,12 +1121,13 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     flex: 1,
   },
-  searchOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 2,
+  searchContainer: {
+    position: "absolute",
+    top: 120, // Moved up slightly to not interfere with other controls
+    left: 20,
+    right: 20,
+    zIndex: 999, // Ensure it's above other elements
+    elevation: 999, // For Android
   },
   statusContainer: {
     position: "absolute",
@@ -1140,7 +1143,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
-    zIndex: 2,
+    zIndex: 998,
   },
 
   searchContainer: {
