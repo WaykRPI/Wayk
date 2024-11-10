@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useAuth } from "../../hooks/useAuth";
 import { useState, useEffect, useRef } from "react";
+
 import MapView, {
   Marker,
   PROVIDER_GOOGLE,
@@ -25,6 +26,7 @@ import * as Location from "expo-location";
 import { supabase } from "../lib/supabase";
 import { useLocationContext } from "../../contexts/LocationContext";
 import ReportForm from "../../components/ReportForm";
+import PlacesSearch from "@/components/Search";
 import Svg, { Path } from "react-native-svg";
 import { Map, Layers, Navigation2 } from "lucide-react-native";
 import { Modalize } from "react-native-modalize";
@@ -95,6 +97,18 @@ export default function Home() {
   const [route, setRoute] = useState<RouteData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showDirections, setShowDirections] = useState(false);
+  const [selectedSearchPlace, setSelectedSearchPlace] = useState(null);
+
+  const handlePlaceSelect = (place) => {
+    setSelectedSearchPlace(place);
+    mapRef.current?.animateCamera({
+      center: {
+        latitude: place.latitude,
+        longitude: place.longitude,
+      },
+      zoom: 17,
+    });
+  };
 
   const handleMapPress = async (event: any) => {
     if (isRoutingMode && location) {
@@ -141,9 +155,14 @@ export default function Home() {
     }
 
     return (
-      <View style={[styles.statusContainer, { backgroundColor: bgColor }]}>
-        <Text style={styles.statusText}>{status}</Text>
-      </View>
+      <>
+        <View style={[styles.statusContainer, { backgroundColor: bgColor }]}>
+          <Text style={styles.statusText}>{status}</Text>
+        </View>
+        <View>
+          <PlacesSearch onPlaceSelect={handlePlaceSelect} />
+        </View>
+      </>
     );
   };
 
