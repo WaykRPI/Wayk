@@ -2,10 +2,8 @@ import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
 import MapView, { Marker } from 'react-native-maps';
 import { useState, useEffect } from 'react';
-import * as Location from 'expo-location';
-import { supabase } from '../lib/supabase';
 import { useLocationContext } from '../../contexts/LocationContext';
-import ReportForm from '../../components/ReportForm';
+import { LocationSharing } from '../../components/LocationSharing';
 
 export default function Home() {
   const { user, signOut } = useAuth();
@@ -20,143 +18,170 @@ export default function Home() {
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
-  const [intersections, setIntersections] = useState<any[]>([]);
-  const [reports, setReports] = useState<any[]>([]); // State to hold reports
 
   useEffect(() => {
     if (location) {
-      setCurrentLocation({
+      const newLocation = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
         latitudeDelta: 0.0922,
         longitudeDelta: 0.0421,
-      });
+      };
+      setCurrentLocation(newLocation);
       setSelectedLocation({
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
       });
-
-      fetchIntersections(location.coords.latitude, location.coords.longitude);
     }
   }, [location]);
 
-  const fetchIntersections = async (latitude: number, longitude: number) => {
-    const query = `
-      [out:json];
-      (
-        node["highway"="traffic_signals"](around:1000, ${latitude}, ${longitude});
-        node["highway"="crossing"](around:1000, ${latitude}, ${longitude});
-      );
-      out body;
-    `;
-
-    try {
-      const response = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
-      const data = await response.json();
-      setIntersections(data.elements);
-    } catch (error) {
-      console.error('Error fetching intersections:', error);
-    }
-  };
-
-  const fetchReports = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('reports')
-        .select('*');
-
-      if (error) throw error;
-
-      setReports(data); // Set the reports state
-    } catch (error) {
-      console.error('Error fetching reports:', error);
-    }
-  };
-
-  useEffect(() => {
-    fetchReports(); // Fetch reports when the component mounts
-  }, []);
-
-  const handleLocationSelect = async (event: any) => {
+  const handleMapPress = (event: any) => {
     const coords = event.nativeEvent.coordinate;
     setSelectedLocation(coords);
   };
 
-  const handleReportSubmitted = () => {
-    fetchReports(); // Refresh the reports after a new report is submitted
-    setSelectedLocation(null); // Clear the selected location
-  };
-
   return (
-    <View style={{ flex: 1 }}>
-      <View style={{ flex: 1 }}>
+    <View style={styles.container}>
+      <View style={styles.mapContainer}>
         <MapView
-          style={{ flex: 1 }}
+          style={styles.map}
           initialRegion={currentLocation}
           showsUserLocation
           showsMyLocationButton
           showsCompass
-          onPress={handleLocationSelect}
+          showsScale
+          onPress={handleMapPress}
         >
+          <LocationSharing 
+            user={user} 
+            currentLocation={selectedLocation}
+          />
+
           {selectedLocation && (
             <Marker
               coordinate={selectedLocation}
               title="Selected Location"
-              description="Tap to confirm this location"
+              description="Your location"
             >
-              <Image 
-                source={{ uri: 'https://img.icons8.com/ios-filled/50/0ea5e9/marker.png' }} 
-                style={{ width: 30, height: 30 }} 
-              />
+              <View style={styles.selectedMarker}>
+                <View style={styles.selectedMarkerDot} />
+              </View>
             </Marker>
           )}
-          {intersections.map((intersection) => (
-            <Marker
-              key={intersection.id}
-              coordinate={{
-                latitude: intersection.lat,
-                longitude: intersection.lon,
-              }}
-              title="Intersection"
-              description="Traffic signal or crossing"
-            >
-              <Image 
-                source={{ uri: 'https://img.icons8.com/ios-filled/50/ffcc00/marker.png' }} 
-                style={{ width: 30, height: 30 }} 
-              />
-            </Marker>
-          ))}
-          {reports.map((report) => (
-            <Marker
-              key={report.id}
-              coordinate={{
-                latitude: report.latitude,
-                longitude: report.longitude,
-              }}
-              title={report.report_type === 'obstacle' ? 'Obstacle' : 'Construction'}
-              description={report.description}
-              pinColor={report.report_type === 'obstacle' ? 'red' : 'orange'} // Different colors for different report types
-            />
-          ))}
         </MapView>
       </View>
 
-      <View style={{ position: 'absolute', top: 40, left: 0, right: 0, alignItems: 'center', backgroundColor: 'rgba(255, 255, 255, 0.9)', padding: 20, margin: 20, borderRadius: 10 }}>
-        <Text style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 10 }}>Welcome!</Text>
-        <Text style={{ fontSize: 16, marginBottom: 20 }}>{user?.email}</Text>
-        {errorMsg && <Text style={{ color: '#ef4444', marginBottom: 10 }}>{errorMsg}</Text>}
+      {/* User Info Overlay */}
+      <View style={styles.overlay}>
+        <Text style={styles.title}>Welcome!</Text>
+        <Text style={styles.email}>{user?.email}</Text>
+        {errorMsg && <Text style={styles.error}>{errorMsg}</Text>}
         
-        <Pressable style={{ backgroundColor: '#ef4444', padding: 15, borderRadius: 5, width: '100%', maxWidth: 200 }} onPress={signOut}>
-          <Text style={{ color: 'white', textAlign: 'center', fontWeight: 'bold' }}>Sign Out</Text>
+        <Pressable style={styles.signOutButton} onPress={signOut}>
+          <Text style={styles.buttonText}>Sign Out</Text>
         </Pressable>
       </View>
 
-      {/* Add the ReportForm component here */}
-      <ReportForm 
-        latitude={selectedLocation?.latitude.toString() || ''} 
-        longitude={selectedLocation?.longitude.toString() || ''} 
-        onReportSubmitted={handleReportSubmitted} 
-      />
+      {/* Selected Location Info */}
+      {selectedLocation && (
+        <View style={styles.locationInfo}>
+          <Text style={styles.locationText}>
+            Selected: {selectedLocation.latitude.toFixed(4)}, {selectedLocation.longitude.toFixed(4)}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  mapContainer: {
+    flex: 1,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  map: {
+    flex: 1,
+  },
+  overlay: {
+    position: 'absolute',
+    top: 40,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    padding: 20,
+    margin: 20,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  email: {
+    fontSize: 16,
+    marginBottom: 20,
+    color: '#666',
+  },
+  error: {
+    color: '#ef4444',
+    marginBottom: 10,
+  },
+  signOutButton: {
+    backgroundColor: '#ef4444',
+    padding: 15,
+    borderRadius: 5,
+    width: '100%',
+    maxWidth: 200,
+  },
+  buttonText: {
+    color: 'white',
+    textAlign: 'center',
+    fontWeight: 'bold',
+  },
+  selectedMarker: {
+    backgroundColor: 'rgba(14, 165, 233, 0.3)',
+    borderRadius: 20,
+    padding: 8,
+  },
+  selectedMarkerDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#0ea5e9',
+  },
+  locationInfo: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: 'white',
+    padding: 15,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  locationText: {
+    fontSize: 16,
+    textAlign: 'center',
+    color: '#666',
+  },
+});
