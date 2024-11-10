@@ -1,24 +1,37 @@
-import { View, Text, Pressable, StyleSheet, Image, Modal, Dimensions } from 'react-native';
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  Image,
+  Animated,
+  Dimensions,
+  PanResponder,
+} from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
+import { useState, useEffect, useRef } from 'react';
 import MapView, { Marker, PROVIDER_GOOGLE, MapType, Camera } from 'react-native-maps';
-import React, { useState, useEffect, useRef } from 'react';
 import * as Location from 'expo-location';
 import { supabase } from '../lib/supabase';
 import { useLocationContext } from '../../contexts/LocationContext';
 import ReportForm from '../../components/ReportForm';
 import Svg, { Path } from 'react-native-svg';
 import { Map, Layers } from 'lucide-react-native';
+import { Modalize } from 'react-native-modalize';
 
-const ULTRA_HIGH_FREQUENCY = 5; // 5ms update interval
-const MAX_HEADING_DELTA = 2; // Maximum heading change per frame
+const ANIMATION_INTERVAL = 16; // ~60fps
+const SERVER_UPDATE_INTERVAL = 1000; // Update server every second
+const INTERPOLATION_FACTOR = 0.15; // Smooth interpolation factor
+const USER_MARKER_SIZE = 32; // Larger size for user marker
+const OTHER_MARKER_SIZE = 24; // Original size for other users
 
-const UserMarker = ({ rotation = 0, color = '#0ea5e9' }) => (
-  <Svg height={24} width={24} viewBox="0 0 24 24" style={{ transform: [{ rotate: `${rotation}deg` }] }}>
+const UserMarker = ({ rotation = 0, color = '#0ea5e9', size = OTHER_MARKER_SIZE }) => (
+  <Svg height={size} width={size} viewBox="0 0 24 24" style={{ transform: [{ rotate: `${rotation}deg` }] }}>
     <Path
       d="M12 2L2 22L12 18L22 22L12 2Z"
       fill={color}
       stroke="#FFFFFF"
-      strokeWidth={1}
+      strokeWidth={1.5}
     />
   </Svg>
 );
@@ -36,27 +49,47 @@ export default function Home() {
   const { user, signOut } = useAuth();
   const { location, errorMsg } = useLocationContext();
   const mapRef = useRef<MapView>(null);
-  const lastUpdate = useRef(Date.now());
-  const lastHeading = useRef(0);
-  const isAnimating = useRef(false);
-  const watchLocation = useRef<Location.LocationSubscription | null>(null);
   const animationFrameId = useRef<number | null>(null);
-  const lastLocation = useRef<Location.LocationObject | null>(null);
+  const lastServerUpdate = useRef(Date.now());
+  
+  const targetLocation = useRef({
+    latitude: 37.78825,
+    longitude: -122.4324,
+    heading: 0,
+  });
+  
+  const currentAnimatedLocation = useRef({
+    latitude: 37.78825,
+    longitude: -122.4324,
+    heading: 0,
+  });
 
   const [selectedLocation, setSelectedLocation] = useState<{
     latitude: number;
     longitude: number;
   } | null>(null);
-  
   const [currentLocation, setCurrentLocation] = useState({
     latitude: 37.78825,
     longitude: -122.4324,
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
+  const screenHeight = Dimensions.get('window').height;
+  const bottomSheetHeight = screenHeight * 0.5; // Adjust as needed
 
+  const translateY = useRef(new Animated.Value(bottomSheetHeight)).current;
+   const modalizeRef = useRef<Modalize>(null);
+
+  const openModal = () => {
+    modalizeRef.current?.open();
+  };
+
+  const closeModal = () => {
+    modalizeRef.current?.close();
+  };
+
+ 
   const [mapType, setMapType] = useState<MapType>('standard');
-  const [userHeading, setUserHeading] = useState(0);
   const [camera, setCamera] = useState<Camera>({
     center: {
       latitude: 37.78825,
@@ -74,66 +107,104 @@ export default function Home() {
   const [isModalVisible, setModalVisible] = useState(false);
   const [isReportMode, setReportMode] = useState(false);
 
-  const smoothHeading = (currentHeading: number | null, prevHeading: number): number => {
-    // If heading is null, return the previous heading
-    if (currentHeading === null) {
-      return prevHeading;
-    }
-  
-    let diff = ((currentHeading - prevHeading + 180) % 360) - 180;
-    diff = Math.max(Math.min(diff, MAX_HEADING_DELTA), -MAX_HEADING_DELTA);
-    return (prevHeading + diff + 360) % 360;
+  const interpolateValue = (current: number, target: number, factor: number): number => {
+    return current + (target - current) * factor;
   };
-  
+
+  const normalizeHeading = (heading: number): number => {
+    while (heading > 360) heading -= 360;
+    while (heading < 0) heading += 360;
+    return heading;
+  };
+
+  const interpolateHeading = (current: number, target: number, factor: number): number => {
+    let diff = ((target - current + 180) % 360) - 180;
+    return normalizeHeading(current + diff * factor);
+  };
+
+  const centerOnUser = () => {
+    const centerLatitude = currentAnimatedLocation.current.latitude;
+    const centerLongitude = currentAnimatedLocation.current.longitude;
+    const heading = currentAnimatedLocation.current.heading;
+
+    mapRef.current?.animateCamera(
+      {
+        center: {
+          latitude: centerLatitude,
+          longitude: centerLongitude,
+        },
+        heading: heading,
+        pitch: 60,
+        zoom: 17,
+        altitude: 1000,
+      },
+      {
+        duration: 0,
+      }
+    );
+  };
+
+  const animate = () => {
+    const { latitude: targetLat, longitude: targetLon, heading: targetHeading } = targetLocation.current;
+    const { latitude: currentLat, longitude: currentLon, heading: currentHeading } = currentAnimatedLocation.current;
+
+    // Smoothly interpolate all values
+    const newLat = interpolateValue(currentLat, targetLat, INTERPOLATION_FACTOR);
+    const newLon = interpolateValue(currentLon, targetLon, INTERPOLATION_FACTOR);
+    const newHeading = interpolateHeading(currentHeading, targetHeading, INTERPOLATION_FACTOR);
+
+    // Update the animated values
+    currentAnimatedLocation.current = {
+      latitude: newLat,
+      longitude: newLon,
+      heading: newHeading,
+    };
+
+    // Always center on user
+    centerOnUser();
+
+    setCamera(prev => ({
+      ...prev,
+      center: {
+        latitude: newLat,
+        longitude: newLon,
+      },
+      heading: newHeading,
+    }));
+
+    // Update current location for markers
+    setCurrentLocation(prev => ({
+      ...prev,
+      latitude: newLat,
+      longitude: newLon,
+    }));
+
+    // Continue the animation loop
+    animationFrameId.current = requestAnimationFrame(animate);
+  };
+
   const handleLocationUpdate = async (location: Location.LocationObject) => {
-    const now = Date.now();
     const { latitude, longitude, heading } = location.coords;
     
-    if (now - lastUpdate.current < ULTRA_HIGH_FREQUENCY || isAnimating.current) {
-      return;
-    }
-    
-    isAnimating.current = true;
-    lastUpdate.current = now;
-  
-    const smoothedHeading = smoothHeading(heading, lastHeading.current);
-    lastHeading.current = smoothedHeading;
-    setUserHeading(smoothedHeading);
-  
-    try {
-      await mapRef.current?.animateCamera(
-        {
-          center: { latitude, longitude },
-          heading: smoothedHeading,
-          pitch: 60,
-          zoom: 17,
-          altitude: 1000,
-        },
-        {
-          duration: ULTRA_HIGH_FREQUENCY,
-        }
-      );
-  
-      setCamera(prev => ({
-        ...prev,
-        center: { latitude, longitude },
-        heading: smoothedHeading,
-      }));
-  
-      setCurrentLocation(prev => ({
-        ...prev,
-        latitude,
-        longitude,
-      }));
-  
-      // Update user location in Supabase
-      if (user) {
+    // Update target location
+    targetLocation.current = {
+      latitude,
+      longitude,
+      heading: heading ?? targetLocation.current.heading,
+    };
+
+    // Check if we should update the server
+    const now = Date.now();
+    if (now - lastServerUpdate.current >= SERVER_UPDATE_INTERVAL && user) {
+      lastServerUpdate.current = now;
+      
+      try {
         const { data: existingUser } = await supabase
           .from('active_users')
           .select('id')
           .eq('user_id', user.id)
           .single();
-  
+
         if (existingUser) {
           await supabase
             .from('active_users')
@@ -152,15 +223,13 @@ export default function Home() {
               user_email: user.email
             });
         }
+      } catch (error) {
+        console.warn('Failed to update server location:', error);
       }
-    } catch (e) {
-      console.warn('Camera animation failed:', e);
     }
-  
-    isAnimating.current = false;
   };
 
-  // Ultra-fast location tracking setup
+  // Set up location tracking and animation
   useEffect(() => {
     const startTracking = async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -168,35 +237,31 @@ export default function Home() {
 
       await Location.enableNetworkProviderAsync();
       
-      watchLocation.current = await Location.watchPositionAsync(
+      const locationSubscription = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.BestForNavigation,
           distanceInterval: 0,
-          timeInterval: ULTRA_HIGH_FREQUENCY,
+          timeInterval: ANIMATION_INTERVAL,
         },
-        (location) => {
-          lastLocation.current = location;
-        }
+
+        handleLocationUpdate
       );
 
-      // High-frequency update loop
-      const updateLoop = () => {
-        if (lastLocation.current) {
-          handleLocationUpdate(lastLocation.current);
-        }
-        animationFrameId.current = requestAnimationFrame(updateLoop);
-      };
+      // Start the animation loop
+      animationFrameId.current = requestAnimationFrame(animate);
 
-      updateLoop();
+      return () => {
+        locationSubscription.remove();
+        if (animationFrameId.current !== null) {
+          cancelAnimationFrame(animationFrameId.current);
+        }
+      };
     };
 
-    startTracking();
+    const cleanup = startTracking();
     
     return () => {
-      watchLocation.current?.remove();
-      if (animationFrameId.current !== null) {
-        cancelAnimationFrame(animationFrameId.current);
-      }
+      cleanup.then(cleanupFn => cleanupFn?.());
       if (user) {
         supabase.from('active_users').delete().eq('user_id', user.id);
       }
@@ -231,9 +296,9 @@ export default function Home() {
           setActiveUsers(current => {
             const activeTimeout = new Date();
             activeTimeout.setMinutes(activeTimeout.getMinutes() - 5);
-            
-            const filtered = current.filter(u => 
-              new Date(u.last_updated) > activeTimeout && 
+
+            const filtered = current.filter(u =>
+              new Date(u.last_updated) > activeTimeout &&
               u.user_id !== user?.id
             );
 
@@ -256,6 +321,24 @@ export default function Home() {
       subscription.unsubscribe();
     };
   }, [user]);
+  useEffect(() => {
+    if (location) {
+      setCurrentLocation({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        latitudeDelta: 0.0922,
+        longitudeDelta: 0.0421,
+      });
+
+      setCamera(prev => ({
+        ...prev,
+        center: {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        }
+      }));
+    }
+  }, [location]);
 
   const fetchIntersections = async (latitude: number, longitude: number) => {
     const query = `
@@ -294,8 +377,9 @@ export default function Home() {
     if (!isReportMode) return;
     const coords = event.nativeEvent.coordinate;
     setSelectedLocation(coords);
-    setModalVisible(true);
+    openModal(); 
   };
+  
 
   const handleReportSubmitted = () => {
     fetchReports();
@@ -336,18 +420,25 @@ export default function Home() {
             shouldRasterizeIOS: true,
           });
         }}
+        onRegionChangeComplete={() => {
+          // Force center on user when map is moved
+          if (!isReportMode) {
+            centerOnUser();
+          }
+        }}
       >
         {location && (
           <Marker
             coordinate={{
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude,
+              latitude: currentAnimatedLocation.current.latitude,
+              longitude: currentAnimatedLocation.current.longitude,
             }}
             title="You"
             anchor={{ x: 0.5, y: 0.5 }}
-            rotation={userHeading}
+            rotation={currentAnimatedLocation.current.heading}
+            zIndex={1000}
           >
-            <UserMarker color="#0ea5e9" />
+            <UserMarker color="#0ea5e9" size={USER_MARKER_SIZE} />
           </Marker>
         )}
 
@@ -360,8 +451,9 @@ export default function Home() {
             }}
             title={activeUser.user_email?.split('@')[0] || 'Anonymous'}
             anchor={{ x: 0.5, y: 0.5 }}
+            zIndex={100}
           >
-            <UserMarker color="#10b981" />
+            <UserMarker color="#10b981" size={OTHER_MARKER_SIZE} />
           </Marker>
         ))}
 
@@ -377,7 +469,7 @@ export default function Home() {
             />
           </Marker>
         )}
-        
+
         {intersections.map((intersection) => (
           <Marker
             key={intersection.id}
@@ -394,7 +486,7 @@ export default function Home() {
             />
           </Marker>
         ))}
-        
+
         {reports.map((report) => (
           <Marker
             key={report.id}
@@ -409,8 +501,8 @@ export default function Home() {
         ))}
       </MapView>
 
-      <Pressable 
-        style={styles.mapTypeButton} 
+      <Pressable
+        style={styles.mapTypeButton}
         onPress={() => setMapType(prev => prev === 'standard' ? 'hybrid' : 'standard')}
       >
         {mapType === 'standard' ? (
@@ -420,8 +512,16 @@ export default function Home() {
         )}
       </Pressable>
 
+
       <Pressable 
-        style={[styles.toggleButton, isReportMode && styles.toggleButtonActive]} 
+        style={[styles.mapTypeButton, { top: 80 }]}
+        onPress={centerOnUser}
+      >
+        <Text style={styles.buttonIcon}>⌖</Text>
+      </Pressable>
+
+      <Pressable
+        style={[styles.toggleButton, isReportMode && styles.toggleButtonActive]}
         onPress={toggleReportMode}
       >
         <Text style={styles.toggleButtonText}>
@@ -429,25 +529,22 @@ export default function Home() {
         </Text>
       </Pressable>
 
-      <Modal
-        visible={isModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setModalVisible(false)}
+      <Modalize
+        ref={modalizeRef}
+        adjustToContentHeight
+        onClosed={() => setModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <ReportForm
-              latitude={selectedLocation?.latitude.toString() || ''}
-              longitude={selectedLocation?.longitude.toString() || ''}
-              onReportSubmitted={handleReportSubmitted}
-            />
-            <Pressable onPress={() => setModalVisible(false)} style={styles.closeButton}>
-              <Text style={styles.closeButtonText}>Close</Text>
-            </Pressable>
-          </View>
+        <View style={styles.modalContent}>
+          <ReportForm
+            latitude={selectedLocation?.latitude.toString() || ''}
+            longitude={selectedLocation?.longitude.toString() || ''}
+            onReportSubmitted={handleReportSubmitted}
+          />
+          <Pressable onPress={closeModal} style={styles.closeButton}>
+            <Text style={styles.closeButtonText}>Close</Text>
+          </Pressable>
         </View>
-      </Modal>
+      </Modalize>
     </View>
   );
 }
@@ -490,30 +587,38 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  bottomSheet: {
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  dragIndicator: {
+    width: 40,
+    height: 5,
+    backgroundColor: '#ccc',
+    alignSelf: 'center',
+    marginVertical: 10,
   },
   modalContent: {
-    width: '90%',
-    padding: 20,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 5,
+    paddingHorizontal: 20, // Added horizontal padding
+    paddingVertical: 10,   // Added vertical padding
+    backgroundColor: '#fff', // Optional, ensures consistent background
   },
   closeButton: {
-    marginTop: 10,
+    marginTop: 20,          // Increased margin to separate from form
     alignItems: 'center',
   },
   closeButtonText: {
     color: '#0ea5e9',
     fontSize: 16,
+    fontWeight: 'bold',
+  },
+  buttonIcon: {
+    color: '#fff',
+    fontSize: 24,
     fontWeight: 'bold',
   },
 });
