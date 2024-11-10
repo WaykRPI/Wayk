@@ -10,7 +10,7 @@ import { useLocationContext } from '../../contexts/LocationContext';
 
 const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 
-const obstacleTypes = [
+export const obstacleTypes = [
   'Construction',
   'Road Damage',
   'Sidewalk Obstruction',
@@ -77,7 +77,7 @@ export default function Home() {
     setSelectedLocation(coords);
     
     try {
-      const { error } = await supabase
+      let { error } = await supabase
         .from('locations')
         .insert({
           user_id: user?.id,
@@ -272,7 +272,7 @@ export default function Home() {
         <Text style={styles.email}>{user?.email}</Text>
         {errorMsg && <Text style={styles.error}>{errorMsg}</Text>}
         
-        <Pressable style={styles.signOutButton} onPress={signOut}>
+        <Pressable style={styles.signOutButton}>
           <Text style={styles.buttonText}>Sign Out</Text>
         </Pressable>
       </View>

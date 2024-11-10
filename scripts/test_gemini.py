@@ -3,8 +3,6 @@ import json
 import requests
 import os
 
-GEN_AI_KEY = 'AIzaSyBiJy7UNCgKs0wGigL72fPm2n-kWKPEf7w';
-
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
@@ -66,7 +64,6 @@ def analyze_image_and_description(image_path, description, obstacle_type):
                 'analysis': analysis_json['reason']
             }
         except json.JSONDecodeError:
-            # Fallback to regex if JSON parsing fails
             import re
             percentage_match = re.search(r'(\d+)%', analysis_text)
             return {
