@@ -34,14 +34,13 @@ import { Float } from "react-native/Libraries/Types/CodegenTypes";
 import { getWalkingDirections, RouteData } from '../../services/directionService';
 import { DirectionsPanel } from '../../components/DirectionsPanel';
 import { ChatModal } from "../../components/ChatModal";
-
+import { AIChatModal } from '../../components/AIChatModal';
 
 const ANIMATION_INTERVAL = 16;
 const SERVER_UPDATE_INTERVAL = 1000;
 const INTERPOLATION_FACTOR = 0.15;
 const USER_MARKER_SIZE = 32;
 const OTHER_MARKER_SIZE = 24;
-const [isSearchFocused, setIsSearchFocused] = useState(false);
 const UserMarker = ({
   rotation = 0,
   color = "#0ea5e9",
@@ -104,6 +103,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [showDirections, setShowDirections] = useState(false);
   const [selectedSearchPlace, setSelectedSearchPlace] = useState(null);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   const handlePlaceSelect = async (place: any) => {
     console.log("Place selected:", place);
@@ -267,6 +267,8 @@ export default function Home() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isImageModalVisible, setIsImageModalVisible] = useState(false);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+  const genMiniModalizeRef = useRef<Modalize>(null);
+  const aiChatModalizeRef = useRef<Modalize>(null);
 
   const openModal = () => {
     modalizeRef.current?.open();
@@ -611,370 +613,397 @@ export default function Home() {
   };
 
   return (
-    <View style={{ flex: 1 }}>
-      <MapView
-        ref={mapRef}
-        style={{ flex: 1 }}
-        provider={PROVIDER_GOOGLE}
-        initialRegion={currentLocation}
-        showsUserLocation={false}
-        showsMyLocationButton={false}
-        showsCompass
-        showsBuildings={true}
-        showsTraffic={true}
-        mapType={mapType}
-        onPress={handleMapPress}
-        customMapStyle={mapStyle}
-        followsUserLocation={false}
-        minZoomLevel={15}
-        maxZoomLevel={20}
-        rotateEnabled={true}
-        pitchEnabled={true}
-        toolbarEnabled={false}
-        onPanDrag={() => {
-          if (!isSearchFocused) {
-            setIsUserInteracting(true);
-            handleMapMovement();
-          }
-        }}
-        onTouchStart={() => {
-          if (!isSearchFocused) {
-            setIsUserInteracting(true);
-          }
-        }}
-        onTouchEnd={() => {
-          if (!isSearchFocused) {
-            setIsUserInteracting(false);
-          }
-        }}
-        onRegionChangeComplete={(region) => {
-          if (isUserInteracting) {
-            handleMapMovement();
-          }
-        }}
-        onMapReady={() => {
-          mapRef.current?.setNativeProps({
-            renderToHardwareTextureAndroid: true,
-            shouldRasterizeIOS: true,
-          });
-        }}
-      >
-        {location && (
-          <Marker
-            coordinate={{
-              latitude: currentAnimatedLocation.current.latitude,
-              longitude: currentAnimatedLocation.current.longitude,
-            }}
-            title="You"
-            anchor={{ x: 0.5, y: 0.5 }}
-            rotation={currentAnimatedLocation.current.heading}
-            zIndex={1000}
-          >
-            <UserMarker color="#0ea5e9" size={USER_MARKER_SIZE} />
-          </Marker>
-        )}
-
-        {activeUsers.map((activeUser) => (
-          <Marker
-            key={activeUser.id}
-            coordinate={{
-              latitude: activeUser.latitude,
-              longitude: activeUser.longitude,
-            }}
-            title={activeUser.user_email?.split("@")[0] || "Anonymous"}
-            anchor={{ x: 0.5, y: 0.5 }}
-            zIndex={100}
-            onPress={() => {
-              if (activeUser.user_id !== user?.id) {
-                // Prevent opening chat with yourself
-                setChatState({
-                  isOpen: true,
-                  selectedUser: activeUser,
-                });
-                chatModalizeRef.current?.open();
+     <View style={{ flex: 1 }}>
+        <MapView
+           ref={mapRef}
+           style={{ flex: 1 }}
+           provider={PROVIDER_GOOGLE}
+           initialRegion={currentLocation}
+           showsUserLocation={false}
+           showsMyLocationButton={false}
+           showsCompass
+           showsBuildings={true}
+           showsTraffic={true}
+           mapType={mapType}
+           onPress={handleMapPress}
+           customMapStyle={mapStyle}
+           followsUserLocation={false}
+           minZoomLevel={15}
+           maxZoomLevel={20}
+           rotateEnabled={true}
+           pitchEnabled={true}
+           toolbarEnabled={false}
+           onPanDrag={() => {
+              if (!isSearchFocused) {
+                 setIsUserInteracting(true);
+                 handleMapMovement();
               }
-            }}
-          >
-            <UserMarker color="#10b981" size={OTHER_MARKER_SIZE} />
-          </Marker>
-        ))}
-
-        {selectedLocation && (
-          <Marker
-            coordinate={selectedLocation}
-            title="Selected Location"
-            description="Tap to confirm this location"
-          >
-            <Image
-              source={{
-                uri: "https://img.icons8.com/ios-filled/50/0ea5e9/marker.png",
-              }}
-              style={{ width: 30, height: 30 }}
-            />
-          </Marker>
-        )}
-
-        {intersections.map((intersection) => (
-          <Marker
-            key={intersection.id}
-            coordinate={{
-              latitude: intersection.lat,
-              longitude: intersection.lon,
-            }}
-            title="Intersection"
-            description="Traffic signal or crossing"
-          >
-            <Image
-              source={{
-                uri: "https://img.icons8.com/ios-filled/50/ffcc00/marker.png",
-              }}
-              style={{ width: 30, height: 30 }}
-            />
-          </Marker>
-        ))}
-
-        {reports.map((report) => (
-          <Marker
-            key={report.id}
-            coordinate={{
-              latitude: report.latitude,
-              longitude: report.longitude,
-            }}
-            onPress={() => handleMarkerPress(report)}
-          >
-            {report.image_url ? (
-              <Image
-                source={{ uri: report.image_url }}
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
-                  borderWidth: 2,
-                  borderColor: "#fff",
-                }}
-                resizeMode="cover"
-              />
-            ) : (
-              <View
-                style={{
-                  backgroundColor: "#ef4444",
-                  width: 20,
-                  height: 20,
-                  borderRadius: 10,
-                  borderWidth: 2,
-                  borderColor: "#fff",
-                }}
-              />
-            )}
-          </Marker>
-        ))}
-                {destination && (
-          <Marker
-            coordinate={destination}
-            title="Destination"
-            pinColor="blue"
-          />
-        )}
-
-        {route && (
-          <Polyline
-            coordinates={route.coordinates}
-            strokeWidth={4}
-            strokeColor="#2563eb"
-          />
-        )}
-      </MapView>
-      <StatusIndicator
-        isFollowing={isFollowingUser}
-        isReportMode={isReportMode}
-      />
-      <Pressable
-        style={styles.mapTypeButton}
-        onPress={() =>
-          setMapType((prev) => (prev === "standard" ? "hybrid" : "standard"))
-        }
-      >
-        {mapType === "standard" ? (
-          <Layers size={24} color="#fff" />
-        ) : (
-          <Map size={24} color="#fff" />
-        )}
-      </Pressable>
-
-      <Pressable
-        style={[
-          styles.modeToggleButton,
-          isFollowingUser && styles.modeToggleButtonActive,
-        ]}
-        onPress={toggleControlMode}
-      >
-        <Navigation2
-          size={24}
-          color="#fff"
-          style={{
-            transform: [{ rotate: isFollowingUser ? "0deg" : "45deg" }],
-            opacity: isFollowingUser ? 1 : 0.8,
-          }}
-        />
-      </Pressable>
-
-      <Pressable
-        style={[styles.toggleButton, isReportMode && styles.toggleButtonActive]}
-        onPress={toggleReportMode}
-      >
-        <Text style={styles.toggleButtonText}>
-          {isReportMode ? "Exit Report Mode" : "Enter Report Mode"}
-        </Text>
-      </Pressable>
-
-      <Modalize
-        ref={modalizeRef}
-        adjustToContentHeight
-        onClosed={() => setModalVisible(false)}
-      >
-        <View style={styles.modalContent}>
-          <ReportForm
-            latitude={selectedLocation?.latitude.toString() || ""}
-            longitude={selectedLocation?.longitude.toString() || ""}
-            onReportSubmitted={handleReportSubmitted}
-          />
-          <Pressable onPress={closeModal} style={styles.closeButton}>
-            <Text style={styles.closeButtonText}>Close</Text>
-          </Pressable>
-        </View>
-      </Modalize>
-
-      <Modalize
-        ref={chatModalizeRef}
-        adjustToContentHeight
-        onClose={() => {
-          setChatState({ isOpen: false, selectedUser: null });
-        }}
-      >
-        {chatState.isOpen && chatState.selectedUser && (
-          <ChatModal
-            modalizeRef={chatModalizeRef}
-            currentUser={user}
-            selectedUser={chatState.selectedUser}
-            onClose={() => {
-              setChatState({ isOpen: false, selectedUser: null });
-              chatModalizeRef.current?.close();
-            }}
-          />
-        )}
-      </Modalize>
-
-      <Modal
-        visible={isImageModalVisible}
-        transparent={true}
-        onRequestClose={() => {
-          setIsImageModalVisible(false);
-          setSelectedReport(null);
-        }}
-      >
-        <Pressable
-          style={styles.imageModalOverlay}
-          onPress={() => {
-            setIsImageModalVisible(false);
-            setSelectedReport(null);
-          }}
+           }}
+           onTouchStart={() => {
+              if (!isSearchFocused) {
+                 setIsUserInteracting(true);
+              }
+           }}
+           onTouchEnd={() => {
+              if (!isSearchFocused) {
+                 setIsUserInteracting(false);
+              }
+           }}
+           onRegionChangeComplete={(region) => {
+              if (isUserInteracting) {
+                 handleMapMovement();
+              }
+           }}
+           onMapReady={() => {
+              mapRef.current?.setNativeProps({
+                 renderToHardwareTextureAndroid: true,
+                 shouldRasterizeIOS: true,
+              });
+           }}
         >
-          <Pressable
-            style={styles.imageModalContent}
-            onPress={(e) => e.stopPropagation()}
-          >
-            {selectedImage ? (
-              <View>
-                <Image
-                  source={{ uri: selectedImage }}
-                  style={styles.imageModalImage}
-                  resizeMode="cover"
-                />
-                <View style={styles.reportDetailsContainer}>
-                  <View style={styles.reportHeader}>
-                    <Text style={styles.reportTitle}>
-                      {selectedReport?.type}
-                    </Text>
-                  </View>
-                  <View style={styles.descriptionContainer}>
-                    <Text style={styles.reportDescription}>
-                      {selectedReport?.description || "No description provided"}
-                    </Text>
-                  </View>
-                  {selectedReport?.accuracy_score !== undefined && (
-                    <View style={styles.accuracyContainer}>
-                      <Text style={styles.accuracyScore}>
-                        {`${selectedReport.accuracy_score}% Accurate`}
-                      </Text>
-                    </View>
-                  )}
+           {location && (
+              <Marker
+                 coordinate={{
+                    latitude: currentAnimatedLocation.current.latitude,
+                    longitude: currentAnimatedLocation.current.longitude,
+                 }}
+                 title='You'
+                 anchor={{ x: 0.5, y: 0.5 }}
+                 rotation={currentAnimatedLocation.current.heading}
+                 zIndex={1000}
+              >
+                 <UserMarker color='#0ea5e9' size={USER_MARKER_SIZE} />
+              </Marker>
+           )}
 
-                  {selectedReport?.ai_analysis && (
-                    <View style={styles.aiAnalysisContainer}>
-                      <Text style={styles.aiAnalysisLabel}>AI Analysis</Text>
-                      <Text style={styles.aiAnalysisText}>
-                        {selectedReport.ai_analysis}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            ) : (
-              <View style={styles.basicReportContainer}>
-                <View style={styles.reportHeader}>
-                  <Text style={styles.reportTitle}>{selectedReport?.type}</Text>
-                </View>
-                <View style={styles.descriptionContainer}>
-                  <Text style={styles.reportDescription}>
-                    {selectedReport?.description || "No description provided"}
-                  </Text>
-                </View>
-              </View>
-            )}
-            <Pressable
-              style={styles.imageModalCloseButton}
-              onPress={() => {
-                setIsImageModalVisible(false);
-                setSelectedReport(null);
-              }}
-            >
-              <Text style={styles.imageModalCloseText}>✕</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
-      <Pressable
-        style={[
-          styles.routingButton,
-          isRoutingMode && styles.routingButtonActive
-        ]}
-        onPress={() => {
-          setIsRoutingMode(!isRoutingMode);
-          if (!isRoutingMode) {
-            setDestination(null);
-            setRoute(null);
-            setShowDirections(false);
-          }
-        }}
-      >
-        <Text style={styles.routingButtonText}>
-          {isRoutingMode ? 'Cancel' : 'Set Walking Route'}
-        </Text>
-      </Pressable>
+           {activeUsers.map((activeUser) => (
+              <Marker
+                 key={activeUser.id}
+                 coordinate={{
+                    latitude: activeUser.latitude,
+                    longitude: activeUser.longitude,
+                 }}
+                 title={activeUser.user_email?.split('@')[0] || 'Anonymous'}
+                 anchor={{ x: 0.5, y: 0.5 }}
+                 zIndex={100}
+                 onPress={() => {
+                    if (activeUser.user_id !== user?.id) {
+                       // Prevent opening chat with yourself
+                       setChatState({
+                          isOpen: true,
+                          selectedUser: activeUser,
+                       });
+                       chatModalizeRef.current?.open();
+                    }
+                 }}
+              >
+                 <UserMarker color='#10b981' size={OTHER_MARKER_SIZE} />
+              </Marker>
+           ))}
 
-      {isLoading && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563eb" />
-        </View>
-      )}
+           {selectedLocation && (
+              <Marker
+                 coordinate={selectedLocation}
+                 title='Selected Location'
+                 description='Tap to confirm this location'
+              >
+                 <Image
+                    source={{
+                       uri: 'https://img.icons8.com/ios-filled/50/0ea5e9/marker.png',
+                    }}
+                    style={{ width: 30, height: 30 }}
+                 />
+              </Marker>
+           )}
 
-      {showDirections && route && (
-        <DirectionsPanel 
-          route={route} 
-          onClose={() => setShowDirections(false)}
+           {intersections.map((intersection) => (
+              <Marker
+                 key={intersection.id}
+                 coordinate={{
+                    latitude: intersection.lat,
+                    longitude: intersection.lon,
+                 }}
+                 title='Intersection'
+                 description='Traffic signal or crossing'
+              >
+                 <Image
+                    source={{
+                       uri: 'https://img.icons8.com/ios-filled/50/ffcc00/marker.png',
+                    }}
+                    style={{ width: 30, height: 30 }}
+                 />
+              </Marker>
+           ))}
+
+           {reports.map((report) => (
+              <Marker
+                 key={report.id}
+                 coordinate={{
+                    latitude: report.latitude,
+                    longitude: report.longitude,
+                 }}
+                 onPress={() => handleMarkerPress(report)}
+              >
+                 {report.image_url ? (
+                    <Image
+                       source={{ uri: report.image_url }}
+                       style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 20,
+                          borderWidth: 2,
+                          borderColor: '#fff',
+                       }}
+                       resizeMode='cover'
+                    />
+                 ) : (
+                    <View
+                       style={{
+                          backgroundColor: '#ef4444',
+                          width: 20,
+                          height: 20,
+                          borderRadius: 10,
+                          borderWidth: 2,
+                          borderColor: '#fff',
+                       }}
+                    />
+                 )}
+              </Marker>
+           ))}
+           {destination && (
+              <Marker
+                 coordinate={destination}
+                 title='Destination'
+                 pinColor='blue'
+              />
+           )}
+
+           {route && (
+              <Polyline
+                 coordinates={route.coordinates}
+                 strokeWidth={4}
+                 strokeColor='#2563eb'
+              />
+           )}
+        </MapView>
+        <StatusIndicator
+           isFollowing={isFollowingUser}
+           isReportMode={isReportMode}
         />
-      )}
-    </View>
+        <Pressable
+           style={styles.mapTypeButton}
+           onPress={() =>
+              setMapType((prev) =>
+                 prev === 'standard' ? 'hybrid' : 'standard'
+              )
+           }
+        >
+           {mapType === 'standard' ? (
+              <Layers size={24} color='#fff' />
+           ) : (
+              <Map size={24} color='#fff' />
+           )}
+        </Pressable>
+
+        <Pressable
+           style={[
+              styles.modeToggleButton,
+              isFollowingUser && styles.modeToggleButtonActive,
+           ]}
+           onPress={toggleControlMode}
+        >
+           <Navigation2
+              size={24}
+              color='#fff'
+              style={{
+                 transform: [{ rotate: isFollowingUser ? '0deg' : '45deg' }],
+                 opacity: isFollowingUser ? 1 : 0.8,
+              }}
+           />
+        </Pressable>
+
+        <Pressable
+           style={[
+              styles.toggleButton,
+              isReportMode && styles.toggleButtonActive,
+           ]}
+           onPress={toggleReportMode}
+        >
+           <Text style={styles.toggleButtonText}>
+              {isReportMode ? 'Exit Report Mode' : 'Enter Report Mode'}
+           </Text>
+        </Pressable>
+
+        <Modalize
+           ref={modalizeRef}
+           adjustToContentHeight
+           onClosed={() => setModalVisible(false)}
+        >
+           <View style={styles.modalContent}>
+              <ReportForm
+                 latitude={selectedLocation?.latitude.toString() || ''}
+                 longitude={selectedLocation?.longitude.toString() || ''}
+                 onReportSubmitted={handleReportSubmitted}
+              />
+              <Pressable onPress={closeModal} style={styles.closeButton}>
+                 <Text style={styles.closeButtonText}>Close</Text>
+              </Pressable>
+           </View>
+        </Modalize>
+
+        <Modalize
+           ref={chatModalizeRef}
+           adjustToContentHeight
+           onClose={() => {
+              setChatState({ isOpen: false, selectedUser: null });
+           }}
+        >
+           {chatState.isOpen && chatState.selectedUser && (
+              <ChatModal
+                 modalizeRef={chatModalizeRef}
+                 currentUser={user}
+                 selectedUser={chatState.selectedUser}
+                 onClose={() => {
+                    setChatState({ isOpen: false, selectedUser: null });
+                    chatModalizeRef.current?.close();
+                 }}
+              />
+           )}
+        </Modalize>
+
+        <Modal
+           visible={isImageModalVisible}
+           transparent={true}
+           onRequestClose={() => {
+              setIsImageModalVisible(false);
+              setSelectedReport(null);
+           }}
+        >
+           <Pressable
+              style={styles.imageModalOverlay}
+              onPress={() => {
+                 setIsImageModalVisible(false);
+                 setSelectedReport(null);
+              }}
+           >
+              <Pressable
+                 style={styles.imageModalContent}
+                 onPress={(e) => e.stopPropagation()}
+              >
+                 {selectedImage ? (
+                    <View>
+                       <Image
+                          source={{ uri: selectedImage }}
+                          style={styles.imageModalImage}
+                          resizeMode='cover'
+                       />
+                       <View style={styles.reportDetailsContainer}>
+                          <View style={styles.reportHeader}>
+                             <Text style={styles.reportTitle}>
+                                {selectedReport?.type}
+                             </Text>
+                          </View>
+                          <View style={styles.descriptionContainer}>
+                             <Text style={styles.reportDescription}>
+                                {selectedReport?.description ||
+                                   'No description provided'}
+                             </Text>
+                          </View>
+                          {selectedReport?.accuracy_score !== undefined && (
+                             <View style={styles.accuracyContainer}>
+                                <Text style={styles.accuracyScore}>
+                                   {`${selectedReport.accuracy_score}% Accurate`}
+                                </Text>
+                             </View>
+                          )}
+
+                          {selectedReport?.ai_analysis && (
+                             <View style={styles.aiAnalysisContainer}>
+                                <Text style={styles.aiAnalysisLabel}>
+                                   AI Analysis
+                                </Text>
+                                <Text style={styles.aiAnalysisText}>
+                                   {selectedReport.ai_analysis}
+                                </Text>
+                             </View>
+                          )}
+                       </View>
+                    </View>
+                 ) : (
+                    <View style={styles.basicReportContainer}>
+                       <View style={styles.reportHeader}>
+                          <Text style={styles.reportTitle}>
+                             {selectedReport?.type}
+                          </Text>
+                       </View>
+                       <View style={styles.descriptionContainer}>
+                          <Text style={styles.reportDescription}>
+                             {selectedReport?.description ||
+                                'No description provided'}
+                          </Text>
+                       </View>
+                    </View>
+                 )}
+                 <Pressable
+                    style={styles.imageModalCloseButton}
+                    onPress={() => {
+                       setIsImageModalVisible(false);
+                       setSelectedReport(null);
+                    }}
+                 >
+                    <Text style={styles.imageModalCloseText}>✕</Text>
+                 </Pressable>
+              </Pressable>
+           </Pressable>
+        </Modal>
+        <Pressable
+           style={[
+              styles.routingButton,
+              isRoutingMode && styles.routingButtonActive,
+           ]}
+           onPress={() => {
+              setIsRoutingMode(!isRoutingMode);
+              if (!isRoutingMode) {
+                 setDestination(null);
+                 setRoute(null);
+                 setShowDirections(false);
+              }
+           }}
+        >
+           <Text style={styles.routingButtonText}>
+              {isRoutingMode ? 'Cancel' : 'Set Walking Route'}
+           </Text>
+        </Pressable>
+
+        {isLoading && (
+           <View style={styles.loadingContainer}>
+              <ActivityIndicator size='large' color='#2563eb' />
+           </View>
+        )}
+
+        {showDirections && route && (
+           <DirectionsPanel
+              route={route}
+              onClose={() => setShowDirections(false)}
+           />
+        )}
+        <Pressable
+           style={styles.genMiniButton}
+           onPress={() => aiChatModalizeRef.current?.open()}
+        >
+           <Text style={styles.genMiniButtonText}>GenMini</Text>
+        </Pressable>
+
+        <AIChatModal
+           modalizeRef={aiChatModalizeRef}
+           reports={reports}
+           onClose={() => aiChatModalizeRef.current?.close()}
+           userLocation={location ? {
+             latitude: location.coords.latitude,
+             longitude: location.coords.longitude,
+           } : undefined}
+        />
+     </View>
   );
 }
 
@@ -1124,23 +1153,27 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#eee",
   },
+
   reportType: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#0ea5e9",
     marginBottom: 8,
   },
+
   reportAccuracy: {
     fontSize: 15,
     color: "#059669",
     marginBottom: 8,
   },
+
   reportAnalysis: {
     fontSize: 15,
     color: "#6B7280",
     fontStyle: "italic",
     lineHeight: 22,
   },
+
   scrollView: {
     maxHeight: "100%",
   },
@@ -1187,14 +1220,6 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
     zIndex: 998,
-  },
-
-  searchContainer: {
-    position: "absolute",
-    top: 160, // Adjust this value to move the search bar up or down
-    left: 20,
-    right: 20,
-    zIndex: 2,
   },
   statusText: {
     color: "#fff",
@@ -1287,6 +1312,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
+  genMiniButton: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    backgroundColor: '#0ea5e9',
+    borderRadius: 30,
+    padding: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+    zIndex: 5, // Match other buttons' z-index
+  },
+  genMiniButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
 });
 
 const mapStyle = [
@@ -1374,6 +1419,7 @@ const mapStyle = [
   {
     featureType: "water",
     elementType: "geometry",
+
     stylers: [{ color: "#1c3f5f" }],
   },
   {
