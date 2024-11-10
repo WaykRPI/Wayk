@@ -527,61 +527,6 @@ const styles = StyleSheet.create({
       color: '#fff',
       fontWeight: '600',
    },
-  container: {
-    padding: 20, 
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 15,
-  },
-  error: {
-    color: '#e74c3c',
-    marginBottom: 10,
-    fontSize: 14,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 10,
-    fontSize: 16,
-    color: '#333',
-    marginBottom: 15,
-  },
-  radioContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  radioButton: {
-    flex: 1,
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: '#e0e0e0',
-    alignItems: 'center',
-    marginRight: 5,
-  },
-  radioButtonActive: {
-    backgroundColor: '#333',
-  },
-  radioText: {
-    color: '#fff',
-    fontWeight: '500',
-  },
-  submitButton: {
-    backgroundColor: '#333',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
 });
 
 export default ReportForm;
