@@ -1,10 +1,22 @@
-import { View, Text, Pressable, StyleSheet, Image, TextInput } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
-import MapView, { Marker, Polyline } from 'react-native-maps';
+import MapView, { Marker } from 'react-native-maps';
 import { useState, useEffect } from 'react';
 import * as Location from 'expo-location';
 import { supabase } from '../lib/supabase';
 import { useLocationContext } from '../../contexts/LocationContext';
+
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; // Radius of the Earth in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2); 
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); 
+  return R * c; // Distance in km
+};
 
 export default function Home() {
   const { user, signOut } = useAuth();
@@ -14,70 +26,29 @@ export default function Home() {
     longitude: number;
   } | null>(null);
   const [currentLocation, setCurrentLocation] = useState({
-    latitude: 42.859769, 
-    longitude: -74.000300,
+    latitude: 37.78825,
+    longitude: -122.4324,
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
-  const [intersections, setIntersections] = useState<any[]>([]);
-  const [routeCoordinates, setRouteCoordinates] = useState<Array<{
-    latitude: number;
-    longitude: number;
-  }>>([]);
-  const [distance, setDistance] = useState<string>('');
-  const [duration, setDuration] = useState<string>('');
+  const [intersections, setIntersections] = useState<any[]>([]); // State to hold intersection nodes
 
   useEffect(() => {
-    if (TEST_MODE) {
-      // Set up test scenario
-      const testDestination = {
-        latitude: 37.7935,  // Fisherman's Wharf
-        longitude: -122.4399
-      };
-      
-      setSelectedLocation(testDestination);
-      
-      // Simulate a fixed current location
-      const testCurrentLocation = {
-        coords: {
-          latitude: 37.7749,  // Downtown SF
-          longitude: -122.4194
-        }
-      };
-      
-      // Use test location instead of actual location
-      setCurrentLocation({
-        latitude: testCurrentLocation.coords.latitude,
-        longitude: testCurrentLocation.coords.longitude,
-        latitudeDelta: 0.0922,
-        longitudeDelta: 0.0421,
-      });
-      
-      // Fetch route using test locations
-      fetchRoute(
-        { 
-          latitude: testCurrentLocation.coords.latitude, 
-          longitude: testCurrentLocation.coords.longitude 
-        },
-        testDestination
-      );
-    } else if (location) {
-      // Normal location handling
-      setCurrentLocation({
+    if (location) {
+      const newLocation = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
         latitudeDelta: 0.0922,
         longitudeDelta: 0.0421,
-      });
-      
-      if (selectedLocation) {
-        fetchRoute(
-          { latitude: location.coords.latitude, longitude: location.coords.longitude },
-          selectedLocation
-        );
-      }
+      };
+
+      setCurrentLocation(newLocation);
+      setSelectedLocation(newLocation);
+
+      // Fetch intersections when location is available
+      fetchIntersections(newLocation.latitude, newLocation.longitude);
     }
-  }, [location, TEST_MODE]);
+  }, [location]);
 
   const fetchIntersections = async (latitude: number, longitude: number) => {
     const query = `
@@ -91,46 +62,21 @@ export default function Home() {
 
     const response = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
     const data = await response.json();
-    setIntersections(data.elements);
-  };
 
-  const fetchRoute = async (start: { latitude: number; longitude: number }, end: { latitude: number; longitude: number }) => {
-    try {
-      const response = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=geojson`
-      );
-      const data = await response.json();
+    // Calculate distance for each intersection and sort by proximity
+    const sortedIntersections = data.elements
+      .map((intersection) => ({
+        ...intersection,
+        distance: calculateDistance(latitude, longitude, intersection.lat, intersection.lon),
+      }))
+      .sort((a, b) => a.distance - b.distance); // Sort intersections by distance
 
-      if (data.routes && data.routes.length > 0) {
-        // Convert coordinates from [longitude, latitude] to {latitude, longitude}
-        const coordinates = data.routes[0].geometry.coordinates.map((coord: [number, number]) => ({
-          latitude: coord[1],
-          longitude: coord[0],
-        }));
-
-        setRouteCoordinates(coordinates);
-
-        // Set distance and duration
-        const distanceInKm = (data.routes[0].distance / 1000).toFixed(1);
-        const durationInMinutes = Math.round(data.routes[0].duration / 60);
-        setDistance(`${distanceInKm} km`);
-        setDuration(`${durationInMinutes} min`);
-      }
-    } catch (error) {
-      console.error('Error fetching route:', error);
-    }
+    setIntersections(sortedIntersections); // Set sorted intersections
   };
 
   const handleLocationSelect = async (event: any) => {
     const coords = event.nativeEvent.coordinate;
     setSelectedLocation(coords);
-    
-    if (location) {
-      fetchRoute(
-        { latitude: location.coords.latitude, longitude: location.coords.longitude },
-        coords
-      );
-    }
     
     try {
       const { error } = await supabase
@@ -158,27 +104,21 @@ export default function Home() {
           showsMyLocationButton
           showsCompass
           onPress={handleLocationSelect}
-          customMapStyle={mapStyle}
+          customMapStyle={mapStyle} // Custom map style
         >
           {selectedLocation && (
             <Marker
               coordinate={selectedLocation}
-              title="Destination"
-              description="Your destination"
+              title="Selected Location"
+              description="Tap to confirm this location"
             >
               <Image 
                 source={{ uri: 'https://img.icons8.com/ios-filled/50/0ea5e9/marker.png' }} 
                 style={styles.marker} 
-              />
+              /> {/* Custom marker */}
             </Marker>
           )}
-          {routeCoordinates.length > 0 && (
-            <Polyline
-              coordinates={routeCoordinates}
-              strokeColor="#0ea5e9"
-              strokeWidth={3}
-            />
-          )}
+          {/* Render intersection markers */}
           {intersections.map((intersection) => (
             <Marker
               key={intersection.id}
@@ -192,32 +132,38 @@ export default function Home() {
               <Image 
                 source={{ uri: 'https://img.icons8.com/ios-filled/50/ffcc00/marker.png' }} 
                 style={styles.marker} 
-              />
+              /> {/* Custom marker for intersections */}
             </Marker>
           ))}
         </MapView>
       </View>
+
+      {/* User Info Overlay */}
+      <View style={styles.overlay}>
+        <Text style={styles.title}>Welcome!</Text>
+        <Text style={styles.email}>{user?.email}</Text>
+        {errorMsg && <Text style={styles.error}>{errorMsg}</Text>}
+        
+        <Pressable style={styles.signOutButton} onPress={signOut}>
+          <Text style={styles.buttonText}>Sign Out</Text>
+        </Pressable>
+      </View>
+
+      {/* Selected Location Panel */}
       {selectedLocation && (
         <View style={styles.coordinatesContainer}>
           <Text style={styles.coordinates}>
-            Destination: {selectedLocation.latitude.toFixed(4)}, 
+            Selected: {selectedLocation.latitude.toFixed(4)}, 
             {selectedLocation.longitude.toFixed(4)}
           </Text>
-          {distance && duration && (
-            <Text style={styles.routeInfo}>
-              Distance: {distance} • Duration: {duration}
-            </Text>
-          )}
           <Pressable 
             style={styles.confirmButton}
             onPress={() => {
+              // Handle location confirmation
               setSelectedLocation(null);
-              setRouteCoordinates([]);
-              setDistance('');
-              setDuration('');
             }}
           >
-            <Text style={styles.buttonText}>Clear Route</Text>
+            <Text style={styles.buttonText}>Confirm Location</Text>
           </Pressable>
         </View>
       )}
@@ -225,7 +171,7 @@ export default function Home() {
   );
 }
 
-// Custom map style for dark theme
+// Sample custom map style
 const mapStyle = [
   {
     "elementType": "geometry",
@@ -322,7 +268,7 @@ const styles = StyleSheet.create({
   mapContainer: {
     flex: 1,
     borderRadius: 10,
-    overflow: 'hidden',
+    overflow: 'hidden', // To round the corners of the map
   },
   map: {
     flex: 1,
@@ -388,12 +334,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 10,
-  },
-  routeInfo: {
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 10,
-    color: '#666',
   },
   confirmButton: {
     backgroundColor: '#0ea5e9',
