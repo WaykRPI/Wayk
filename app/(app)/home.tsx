@@ -940,12 +940,14 @@ export default function Home() {
 const styles = StyleSheet.create({
   routingButton: {
     position: 'absolute',
-    top: 40,
+    bottom: 80, 
     right: 20,
     backgroundColor: '#2563eb',
+    borderRadius: 30, 
     paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
+    paddingVertical: 15, 
+    justifyContent: "center",
+    alignItems: "center",
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
