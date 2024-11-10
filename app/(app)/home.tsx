@@ -1,11 +1,33 @@
 import { View, Text, Pressable, StyleSheet, Image, Modal } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE, MapType } from 'react-native-maps';
 import { useState, useEffect } from 'react';
 import * as Location from 'expo-location';
 import { supabase } from '../lib/supabase';
 import { useLocationContext } from '../../contexts/LocationContext';
 import ReportForm from '../../components/ReportForm';
+import Svg, { Path } from 'react-native-svg';
+import { Map, Layers } from 'lucide-react-native';
+
+const UserMarker = ({ rotation = 0, color = '#0ea5e9' }) => (
+  <Svg height={24} width={24} viewBox="0 0 24 24" style={{ transform: [{ rotate: `${rotation}deg` }] }}>
+    <Path
+      d="M12 2L2 22L12 18L22 22L12 2Z"
+      fill={color}
+      stroke="#FFFFFF"
+      strokeWidth={1}
+    />
+  </Svg>
+);
+
+interface ActiveUser {
+  id: string;
+  user_id: string;
+  latitude: number;
+  longitude: number;
+  last_updated: string;
+  user_email: string;
+}
 
 export default function Home() {
   const { user, signOut } = useAuth();
@@ -14,111 +36,144 @@ export default function Home() {
     latitude: number;
     longitude: number;
   } | null>(null);
+  
   const [currentLocation, setCurrentLocation] = useState({
     latitude: 37.78825,
     longitude: -122.4324,
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
-  const mapStyle = [
-    {
-      elementType: 'geometry',
-      stylers: [{ color: '#1d1d1d' }], // Black background for general map area
-    },
-    {
-      elementType: 'labels.icon',
-      stylers: [{ visibility: 'off' }],
-    },
-    {
-      elementType: 'labels.text.fill',
-      stylers: [{ color: '#80b3ff' }], // Light blue text for readability
-    },
-    {
-      elementType: 'labels.text.stroke',
-      stylers: [{ color: '#1d1d1d' }], // Match background for subtle effect
-    },
-    {
-      featureType: 'administrative',
-      elementType: 'geometry',
-      stylers: [{ color: '#2e2e2e' }], // Dark grey for administrative boundaries
-    },
-    {
-      featureType: 'administrative.country',
-      elementType: 'labels.text.fill',
-      stylers: [{ color: '#6699cc' }], // Medium blue for country labels
-    },
-    {
-      featureType: 'administrative.locality',
-      elementType: 'labels.text.fill',
-      stylers: [{ color: '#80b3ff' }], // Light blue for locality labels
-    },
-    {
-      featureType: 'poi',
-      elementType: 'labels.text.fill',
-      stylers: [{ color: '#5a8fc1' }], // Softer blue for points of interest
-    },
-    {
-      featureType: 'poi.park',
-      elementType: 'geometry',
-      stylers: [{ color: '#1a1a1a' }], // Darker black for parks
-    },
-    {
-      featureType: 'poi.park',
-      elementType: 'labels.text.fill',
-      stylers: [{ color: '#4a90e2' }], // Medium blue for park labels
-    },
-    {
-      featureType: 'road',
-      elementType: 'geometry.fill',
-      stylers: [{ color: '#2e2e2e' }], // Dark grey for roads
-    },
-    {
-      featureType: 'road',
-      elementType: 'labels.text.fill',
-      stylers: [{ color: '#6699cc' }], // Medium blue for road labels
-    },
-    {
-      featureType: 'road.arterial',
-      elementType: 'geometry',
-      stylers: [{ color: '#3a3a3a' }], // Dark grey for arterial roads
-    },
-    {
-      featureType: 'road.highway',
-      elementType: 'geometry',
-      stylers: [{ color: '#4a4a4a' }], // Slightly lighter grey for highways
-    },
-    {
-      featureType: 'road.highway.controlled_access',
-      elementType: 'geometry',
-      stylers: [{ color: '#5b5b5b' }], // Light grey for controlled-access highways
-    },
-    {
-      featureType: 'road.local',
-      elementType: 'labels.text.fill',
-      stylers: [{ color: '#4a90e2' }], // Light blue for local road labels
-    },
-    {
-      featureType: 'transit',
-      elementType: 'labels.text.fill',
-      stylers: [{ color: '#5a8fc1' }], // Softer blue for transit labels
-    },
-    {
-      featureType: 'water',
-      elementType: 'geometry',
-      stylers: [{ color: '#1c3f5f' }], // Deep blue for water bodies
-    },
-    {
-      featureType: 'water',
-      elementType: 'labels.text.fill',
-      stylers: [{ color: '#80b3ff' }], // Light blue for water labels
-    },
-  ];
-  
 
+  const [mapType, setMapType] = useState<MapType>('standard');
+  const [camera, setCamera] = useState({
+    center: {
+      latitude: 37.78825,
+      longitude: -122.4324,
+    },
+    pitch: 85,
+    altitude: 250,
+    heading: 0,
+    zoom: 17,
+  });
+
+  const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
+  const [watchLocation, setWatchLocation] = useState<any>(null);
   const [intersections, setIntersections] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
   const [isModalVisible, setModalVisible] = useState(false);
   const [isReportMode, setReportMode] = useState(false);
+
+  // Initial fetch of active users
+  useEffect(() => {
+    const fetchActiveUsers = async () => {
+      const { data, error } = await supabase
+        .from('active_users')
+        .select('*');
+      if (data && !error) {
+        setActiveUsers(data);
+      }
+    };
+    fetchActiveUsers();
+  }, []);
+
+  // Watch user's location
+  useEffect(() => {
+    const startWatchingLocation = async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+
+      const watchId = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          distanceInterval: 5,
+          timeInterval: 1000
+        },
+        async (newLocation) => {
+          const { latitude, longitude } = newLocation.coords;
+          
+          if (user) {
+            const { data: existingUser } = await supabase
+              .from('active_users')
+              .select('id')
+              .eq('user_id', user.id)
+              .single();
+
+            if (existingUser) {
+              await supabase
+                .from('active_users')
+                .update({
+                  latitude,
+                  longitude,
+                })
+                .eq('user_id', user.id);
+            } else {
+              await supabase
+                .from('active_users')
+                .insert({
+                  user_id: user.id,
+                  latitude,
+                  longitude,
+                  user_email: user.email
+                });
+            }
+          }
+        }
+      );
+      
+      setWatchLocation(watchId);
+    };
+
+    startWatchingLocation();
+    return () => {
+      if (watchLocation) {
+        watchLocation.remove();
+      }
+      if (user) {
+        supabase.from('active_users').delete().eq('user_id', user.id);
+      }
+    };
+  }, [user]);
+
+  // Subscribe to active users changes
+  useEffect(() => {
+    const subscription = supabase
+      .channel('active_users')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'active_users'
+        },
+        (payload) => {
+          setActiveUsers(current => {
+            const activeTimeout = new Date();
+            activeTimeout.setMinutes(activeTimeout.getMinutes() - 5);
+            
+            const filtered = current.filter(u => 
+              new Date(u.last_updated) > activeTimeout && 
+              u.user_id !== user?.id
+            );
+
+            if (payload.eventType !== 'DELETE' && payload.new.user_id !== user?.id) {
+              const exists = filtered.findIndex(u => u.user_id === payload.new.user_id);
+              if (exists >= 0) {
+                filtered[exists] = payload.new as ActiveUser;
+              } else {
+                filtered.push(payload.new as ActiveUser);
+              }
+            }
+
+            return filtered;
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [user]);
 
   useEffect(() => {
     if (location) {
@@ -128,6 +183,14 @@ export default function Home() {
         latitudeDelta: 0.0922,
         longitudeDelta: 0.0421,
       });
+      
+      setCamera(prev => ({
+        ...prev,
+        center: {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        }
+      }));
     }
   }, [location]);
 
@@ -180,20 +243,54 @@ export default function Home() {
 
   const toggleReportMode = () => {
     setReportMode(!isReportMode);
-    setSelectedLocation(null); // Clear selected location if toggling off
+    setSelectedLocation(null);
   };
 
   return (
     <View style={{ flex: 1 }}>
       <MapView
         style={{ flex: 1 }}
+        provider={PROVIDER_GOOGLE}
         initialRegion={currentLocation}
-        showsUserLocation
+        showsUserLocation={false}
         showsMyLocationButton
         showsCompass
+        showsBuildings={true}
+        showsTraffic={true}
+        mapType={mapType}
         onPress={handleLocationSelect}
-         customMapStyle={mapStyle}  
+        customMapStyle={mapStyle}
+        camera={camera}
       >
+        {/* Current user marker */}
+        {location && (
+          <Marker
+            coordinate={{
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+            }}
+            title="You"
+            anchor={{ x: 0.5, y: 0.5 }}
+          >
+            <UserMarker color="#0ea5e9" />
+          </Marker>
+        )}
+
+        {/* Other active users */}
+        {activeUsers.map((activeUser) => (
+          <Marker
+            key={activeUser.id}
+            coordinate={{
+              latitude: activeUser.latitude,
+              longitude: activeUser.longitude,
+            }}
+            title={activeUser.user_email?.split('@')[0] || 'Anonymous'}
+            anchor={{ x: 0.5, y: 0.5 }}
+          >
+            <UserMarker color="#10b981" />
+          </Marker>
+        ))}
+
         {selectedLocation && (
           <Marker
             coordinate={selectedLocation}
@@ -206,6 +303,7 @@ export default function Home() {
             />
           </Marker>
         )}
+        
         {intersections.map((intersection) => (
           <Marker
             key={intersection.id}
@@ -222,6 +320,7 @@ export default function Home() {
             />
           </Marker>
         ))}
+        
         {reports.map((report) => (
           <Marker
             key={report.id}
@@ -236,8 +335,24 @@ export default function Home() {
         ))}
       </MapView>
 
-      <Pressable style={[styles.toggleButton, isReportMode && styles.toggleButtonActive]} onPress={toggleReportMode}>
-        <Text style={styles.toggleButtonText}>{isReportMode ? 'Exit Report Mode' : 'Enter Report Mode'}</Text>
+      <Pressable 
+        style={styles.mapTypeButton} 
+        onPress={() => setMapType(prev => prev === 'standard' ? 'hybrid' : 'standard')}
+      >
+        {mapType === 'standard' ? (
+          <Layers size={24} color="#fff" />
+        ) : (
+          <Map size={24} color="#fff" />
+        )}
+      </Pressable>
+
+      <Pressable 
+        style={[styles.toggleButton, isReportMode && styles.toggleButtonActive]} 
+        onPress={toggleReportMode}
+      >
+        <Text style={styles.toggleButtonText}>
+          {isReportMode ? 'Exit Report Mode' : 'Enter Report Mode'}
+        </Text>
       </Pressable>
 
       <Modal
@@ -264,6 +379,19 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
+  mapTypeButton: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    backgroundColor: '#0ea5e9',
+    borderRadius: 8,
+    padding: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
   toggleButton: {
     position: 'absolute',
     bottom: 20,
@@ -315,3 +443,97 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
+
+const mapStyle = [
+  {
+    elementType: 'geometry',
+    stylers: [{ color: '#1d1d1d' }],
+  },
+  {
+    elementType: 'labels.icon',
+    stylers: [{ visibility: 'off' }],
+  },
+  {
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#80b3ff' }],
+  },
+  {
+    elementType: 'labels.text.stroke',
+    stylers: [{ color: '#1d1d1d' }],
+  },
+  {
+    featureType: 'administrative',
+    elementType: 'geometry',
+    stylers: [{ color: '#2e2e2e' }],
+  },
+  {
+    featureType: 'administrative.country',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#6699cc' }],
+  },
+  {
+    featureType: 'administrative.locality',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#80b3ff' }],
+  },
+  {
+    featureType: 'poi',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#5a8fc1' }],
+  },
+  {
+    featureType: 'poi.park',
+    elementType: 'geometry',
+    stylers: [{ color: '#1a1a1a' }],
+  },
+  {
+    featureType: 'poi.park',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#4a90e2' }],
+  },
+  {
+    featureType: 'road',
+    elementType: 'geometry.fill',
+    stylers: [{ color: '#2e2e2e' }],
+  },
+  {
+    featureType: 'road',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#6699cc' }],
+  },
+  {
+    featureType: 'road.arterial',
+    elementType: 'geometry',
+    stylers: [{ color: '#3a3a3a' }],
+  },
+  {
+    featureType: 'road.highway',
+    elementType: 'geometry',
+    stylers: [{ color: '#4a4a4a' }],
+  },
+  {
+    featureType: 'road.highway.controlled_access',
+    elementType: 'geometry',
+    stylers: [{ color: '#5b5b5b' }],
+  },
+  {
+    featureType: 'road.local',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#4a90e2' }],
+  },
+  {
+    featureType: 'transit',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#5a8fc1' }],
+  },
+  {
+    featureType: 'water',
+    elementType: 'geometry',
+    stylers: [{ color: '#1c3f5f' }],
+  },
+  {
+    featureType: 'water',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#80b3ff' }],
+  },
+];
