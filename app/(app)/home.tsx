@@ -144,7 +144,7 @@ export default function Home() {
   }) => {
     let status = "Manual Control";
     let bgColor = "#64748b";
-
+  
     if (isFollowing) {
       status = "Following";
       bgColor = "#10b981";
@@ -153,13 +153,13 @@ export default function Home() {
       status = "Report Mode";
       bgColor = "#ef4444";
     }
-
+  
     return (
       <>
         <View style={[styles.statusContainer, { backgroundColor: bgColor }]}>
           <Text style={styles.statusText}>{status}</Text>
         </View>
-        <View>
+        <View style={styles.searchContainer}>
           <PlacesSearch onPlaceSelect={handlePlaceSelect} />
         </View>
       </>
@@ -1107,6 +1107,14 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     flex: 1,
   },
+  searchContainer: {
+    position: 'absolute',
+    top: 90, // Below the status indicator
+    left: 20,
+    right: 20,
+    zIndex: 1, // Ensure it's above the map
+    backgroundColor: 'transparent',
+  },
   statusContainer: {
     position: "absolute",
     top: 40,
@@ -1120,6 +1128,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+    zIndex: 1,
   },
   statusText: {
     color: "#fff",
