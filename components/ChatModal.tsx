@@ -46,11 +46,18 @@ export const ChatModal: React.FC<ChatModalProps> = ({
 
     // Fetch existing messages
     const fetchMessages = async () => {
+      console.log('Fetching messages for:', currentUser.id, selectedUser.user_id);
       const { data, error } = await supabase
         .from('messages')
         .select('*')
-        .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedUser.user_id}),and(sender_id.eq.${selectedUser.user_id},receiver_id.eq.${currentUser.id})`)
+        .or(
+          `and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedUser.user_id}),` +
+          `and(sender_id.eq.${selectedUser.user_id},receiver_id.eq.${currentUser.id})`
+        )
         .order('created_at', { ascending: true });
+
+      console.log('Messages received:', data);
+      if (error) console.log('Error fetching messages:', error);
 
       if (data && !error) {
         setMessages(data);
@@ -90,9 +97,12 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       content: newMessage.trim(),
     };
 
+    console.log('Sending message:', message);
     const { error } = await supabase.from('messages').insert([message]);
 
-    if (!error) {
+    if (error) {
+      console.log('Error sending message:', error);
+    } else {
       setNewMessage('');
     }
   };
@@ -101,7 +111,6 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     const date = new Date(dateString);
     const now = new Date();
     
-    // If message is from today, show only time
     if (date.toDateString() === now.toDateString()) {
       return date.toLocaleTimeString([], { 
         hour: '2-digit', 
@@ -109,7 +118,6 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       });
     }
     
-    // If message is from this year, show date without year
     if (date.getFullYear() === now.getFullYear()) {
       return date.toLocaleDateString([], { 
         month: 'short', 
@@ -117,7 +125,6 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       });
     }
     
-    // Otherwise show full date
     return date.toLocaleDateString([], { 
       year: 'numeric', 
       month: 'short', 
@@ -125,14 +132,14 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     });
   };
 
-  const renderMessage = ({ item, index }: { item: Message, index: number }) => {
+  const renderItem = ({ item, index }: { item: Message, index: number }) => {
     const isOwnMessage = item.sender_id === currentUser?.id;
     const showDate = index === 0 || 
       new Date(messages[index - 1].created_at).toDateString() !== 
       new Date(item.created_at).toDateString();
 
     return (
-      <>
+      <View key={item.id}>
         {showDate && (
           <View style={styles.dateContainer}>
             <Text style={styles.dateText}>
@@ -163,15 +170,12 @@ export const ChatModal: React.FC<ChatModalProps> = ({
             {formatTime(item.created_at)}
           </Text>
         </View>
-      </>
+      </View>
     );
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}
-    >
+    <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerText}>
           Chat with {selectedUser?.user_email?.split('@')[0]}
@@ -180,36 +184,42 @@ export const ChatModal: React.FC<ChatModalProps> = ({
           <X size={24} color="#0ea5e9" />
         </Pressable>
       </View>
-      
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        renderItem={renderMessage}
-        keyExtractor={(item) => item.id}
-        style={styles.messagesList}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
-        onLayout={() => flatListRef.current?.scrollToEnd()}
-        contentContainerStyle={styles.messagesContent}
-      />
 
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.input}
-          value={newMessage}
-          onChangeText={setNewMessage}
-          placeholder="Type a message..."
-          multiline
-          maxLength={500}
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.chatContainer}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.messagesContent}
+          inverted={false}
+          onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
         />
-        <Pressable 
-          style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]} 
-          onPress={sendMessage}
-          disabled={!newMessage.trim()}
-        >
-          <Send size={20} color="#fff" />
-        </Pressable>
-      </View>
-    </KeyboardAvoidingView>
+
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.input}
+            value={newMessage}
+            onChangeText={setNewMessage}
+            placeholder="Type a message..."
+            multiline
+            maxLength={500}
+          />
+          <Pressable 
+            style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]} 
+            onPress={sendMessage}
+            disabled={!newMessage.trim()}
+          >
+            <Send size={20} color="#fff" />
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
+    </View>
   );
 };
 
@@ -234,11 +244,12 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 5,
   },
-  messagesList: {
+  chatContainer: {
     flex: 1,
   },
   messagesContent: {
     padding: 10,
+    flexGrow: 1,
   },
   dateContainer: {
     alignItems: 'center',
