@@ -4,6 +4,8 @@ import MapView, { Marker } from 'react-native-maps';
 import { useState, useEffect } from 'react';
 import { useLocationContext } from '../../contexts/LocationContext';
 import { LocationSharing } from '../../components/LocationSharing';
+import { supabase } from '../lib/supabase';
+import ReportForm from '../../components/ReportForm';
 
 export default function Home() {
   const { user, signOut } = useAuth();
@@ -169,6 +171,7 @@ export default function Home() {
 
   const handleLocationSelect = (event: any) => {
     if (!isReportMode) return;
+  };
 
   const handleMapPress = (event: any) => {
     const coords = event.nativeEvent.coordinate;
