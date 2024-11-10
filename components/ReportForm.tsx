@@ -416,13 +416,13 @@ const styles = StyleSheet.create({
    },
    radioButton: {
       flex: 1,
-      padding: 12, // Increased padding
+      padding: 12,
       borderRadius: 8,
       backgroundColor: '#e0e0e0',
       alignItems: 'center',
-      justifyContent: 'center', // Center content vertically
+      justifyContent: 'center',
       marginRight: 5,
-      minHeight: 44, // Minimum touch target size
+      minHeight: 44,
    },
    radioButtonActive: {
       backgroundColor: '#333',
@@ -436,8 +436,8 @@ const styles = StyleSheet.create({
       paddingVertical: 12,
       borderRadius: 8,
       alignItems: 'center',
-      justifyContent: 'center', // Center content vertically
-      minHeight: 44, // Minimum touch target size
+      justifyContent: 'center',
+      minHeight: 44,
    },
    submitButtonText: {
       color: '#fff',
@@ -453,21 +453,21 @@ const styles = StyleSheet.create({
    },
    typeButton: {
       paddingHorizontal: 16,
-      paddingVertical: 12, // Increased padding for better touch area
+      paddingVertical: 12,
       borderRadius: 20,
       borderWidth: 1,
       borderColor: '#ddd',
       backgroundColor: '#fff',
       marginBottom: 8,
-      justifyContent: 'center', // Center content vertically
-      alignItems: 'center', // Center content horizontally
-      minHeight: 44, // Minimum touch target size
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: 44,
    },
    fullWidthButton: {
       width: '100%',
    },
    halfWidthButton: {
-      width: '48%', // Slightly less than 50% to account for gap
+      width: '48%',
    },
    centerButton: {
       width: '48%',
@@ -481,7 +481,6 @@ const styles = StyleSheet.create({
       color: '#666',
       fontSize: 14,
       textAlign: 'center',
-      // Remove textAlignVertical as it's not needed with flexbox centering
    },
    typeButtonTextActive: {
       color: '#fff',
