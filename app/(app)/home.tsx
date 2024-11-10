@@ -9,8 +9,9 @@ import {
   PanResponder,
 } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
-import MapView, { Marker, PROVIDER_GOOGLE, MapType } from 'react-native-maps';
 import { useState, useEffect, useRef } from 'react';
+import { useAuth } from '../../hooks/useAuth';
+import MapView, { Marker, PROVIDER_GOOGLE, MapType, Camera } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { supabase } from '../lib/supabase';
 import { useLocationContext } from '../../contexts/LocationContext';
@@ -18,6 +19,9 @@ import ReportForm from '../../components/ReportForm';
 import Svg, { Path } from 'react-native-svg';
 import { Map, Layers } from 'lucide-react-native';
 import { Modalize } from 'react-native-modalize';
+
+const ULTRA_HIGH_FREQUENCY = 5; // 5ms update interval
+const MAX_HEADING_DELTA = 2; // Maximum heading change per frame
 
 const UserMarker = ({ rotation = 0, color = '#0ea5e9' }) => (
   <Svg height={24} width={24} viewBox="0 0 24 24" style={{ transform: [{ rotate: `${rotation}deg` }] }}>
@@ -42,6 +46,14 @@ interface ActiveUser {
 export default function Home() {
   const { user, signOut } = useAuth();
   const { location, errorMsg } = useLocationContext();
+  const mapRef = useRef<MapView>(null);
+  const lastUpdate = useRef(Date.now());
+  const lastHeading = useRef(0);
+  const isAnimating = useRef(false);
+  const watchLocation = useRef<Location.LocationSubscription | null>(null);
+  const animationFrameId = useRef<number | null>(null);
+  const lastLocation = useRef<Location.LocationObject | null>(null);
+
   const [selectedLocation, setSelectedLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -68,48 +80,123 @@ export default function Home() {
 
  
   const [mapType, setMapType] = useState<MapType>('standard');
-  const [camera, setCamera] = useState({
+  const [userHeading, setUserHeading] = useState(0);
+  const [camera, setCamera] = useState<Camera>({
     center: {
       latitude: 37.78825,
       longitude: -122.4324,
     },
-    pitch: 85,
-    altitude: 250,
+    pitch: 60,
     heading: 0,
     zoom: 17,
+    altitude: 1000,
   });
 
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
-  const [watchLocation, setWatchLocation] = useState<any>(null);
   const [intersections, setIntersections] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
   const [isModalVisible, setModalVisible] = useState(false);
   const [isReportMode, setReportMode] = useState(false);
 
-  // Initial fetch of active users
-  useEffect(() => {
-    const fetchActiveUsers = async () => {
-      const { data, error } = await supabase
-        .from('active_users')
-        .select('*');
-      if (data && !error) {
-        setActiveUsers(data);
+  const smoothHeading = (currentHeading: number | null, prevHeading: number): number => {
+    // If heading is null, return the previous heading
+    if (currentHeading === null) {
+      return prevHeading;
+    }
+  
+    let diff = ((currentHeading - prevHeading + 180) % 360) - 180;
+    diff = Math.max(Math.min(diff, MAX_HEADING_DELTA), -MAX_HEADING_DELTA);
+    return (prevHeading + diff + 360) % 360;
+  };
+  
+  const handleLocationUpdate = async (location: Location.LocationObject) => {
+    const now = Date.now();
+    const { latitude, longitude, heading } = location.coords;
+    
+    if (now - lastUpdate.current < ULTRA_HIGH_FREQUENCY || isAnimating.current) {
+      return;
+    }
+    
+    isAnimating.current = true;
+    lastUpdate.current = now;
+  
+    const smoothedHeading = smoothHeading(heading, lastHeading.current);
+    lastHeading.current = smoothedHeading;
+    setUserHeading(smoothedHeading);
+  
+    try {
+      await mapRef.current?.animateCamera(
+        {
+          center: { latitude, longitude },
+          heading: smoothedHeading,
+          pitch: 60,
+          zoom: 17,
+          altitude: 1000,
+        },
+        {
+          duration: ULTRA_HIGH_FREQUENCY,
+        }
+      );
+  
+      setCamera(prev => ({
+        ...prev,
+        center: { latitude, longitude },
+        heading: smoothedHeading,
+      }));
+  
+      setCurrentLocation(prev => ({
+        ...prev,
+        latitude,
+        longitude,
+      }));
+  
+      // Update user location in Supabase
+      if (user) {
+        const { data: existingUser } = await supabase
+          .from('active_users')
+          .select('id')
+          .eq('user_id', user.id)
+          .single();
+  
+        if (existingUser) {
+          await supabase
+            .from('active_users')
+            .update({
+              latitude,
+              longitude,
+            })
+            .eq('user_id', user.id);
+        } else {
+          await supabase
+            .from('active_users')
+            .insert({
+              user_id: user.id,
+              latitude,
+              longitude,
+              user_email: user.email
+            });
+        }
       }
-    };
-    fetchActiveUsers();
-  }, []);
+    } catch (e) {
+      console.warn('Camera animation failed:', e);
+    }
+  
+    isAnimating.current = false;
+  };
 
-  // Watch user's location
+  // Ultra-fast location tracking setup
   useEffect(() => {
-    const startWatchingLocation = async () => {
+    const startTracking = async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') return;
 
-      const watchId = await Location.watchPositionAsync(
+      await Location.enableNetworkProviderAsync();
+      
+      watchLocation.current = await Location.watchPositionAsync(
         {
-          accuracy: Location.Accuracy.High,
-          distanceInterval: 5,
-          timeInterval: 1000
+          accuracy: Location.Accuracy.BestForNavigation,
+          distanceInterval: 0,
+          timeInterval: ULTRA_HIGH_FREQUENCY,
         },
         async (newLocation) => {
           const { latitude, longitude } = newLocation.coords;
@@ -146,16 +233,31 @@ export default function Home() {
       setWatchLocation(watchId);
     };
 
-    startWatchingLocation();
+    startTracking();
+    
     return () => {
-      if (watchLocation) {
-        watchLocation.remove();
+      watchLocation.current?.remove();
+      if (animationFrameId.current !== null) {
+        cancelAnimationFrame(animationFrameId.current);
       }
       if (user) {
         supabase.from('active_users').delete().eq('user_id', user.id);
       }
     };
   }, [user]);
+
+  // Initial fetch of active users
+  useEffect(() => {
+    const fetchActiveUsers = async () => {
+      const { data, error } = await supabase
+        .from('active_users')
+        .select('*');
+      if (data && !error) {
+        setActiveUsers(data);
+      }
+    };
+    fetchActiveUsers();
+  }, []);
 
   // Subscribe to active users changes
   useEffect(() => {
@@ -197,7 +299,6 @@ export default function Home() {
       subscription.unsubscribe();
     };
   }, [user]);
-
   useEffect(() => {
     if (location) {
       setCurrentLocation({
@@ -252,7 +353,6 @@ export default function Home() {
 
   const handleLocationSelect = (event: any) => {
     if (!isReportMode) return;
-  
     const coords = event.nativeEvent.coordinate;
     setSelectedLocation(coords);
     openModal(); 
@@ -273,6 +373,7 @@ export default function Home() {
   return (
     <View style={{ flex: 1 }}>
       <MapView
+        ref={mapRef}
         style={{ flex: 1 }}
         provider={PROVIDER_GOOGLE}
         initialRegion={currentLocation}
@@ -285,8 +386,19 @@ export default function Home() {
         onPress={handleLocationSelect}
         customMapStyle={mapStyle}
         camera={camera}
+        followsUserLocation={true}
+        minZoomLevel={15}
+        maxZoomLevel={20}
+        rotateEnabled={true}
+        pitchEnabled={true}
+        toolbarEnabled={false}
+        onMapReady={() => {
+          mapRef.current?.setNativeProps({
+            renderToHardwareTextureAndroid: true,
+            shouldRasterizeIOS: true,
+          });
+        }}
       >
-        {/* Current user marker */}
         {location && (
           <Marker
             coordinate={{
@@ -295,12 +407,12 @@ export default function Home() {
             }}
             title="You"
             anchor={{ x: 0.5, y: 0.5 }}
+            rotation={userHeading}
           >
             <UserMarker color="#0ea5e9" />
           </Marker>
         )}
 
-        {/* Other active users */}
         {activeUsers.map((activeUser) => (
           <Marker
             key={activeUser.id}

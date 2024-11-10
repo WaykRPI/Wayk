@@ -18,6 +18,18 @@ const obstacleTypes = [
   'Other'
 ];
 
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; // Radius of the Earth in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2); 
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); 
+  return R * c; // Distance in km
+};
+
 export default function Home() {
   const { user } = useAuth();
   const { location, errorMsg } = useLocationContext();
@@ -26,8 +38,8 @@ export default function Home() {
     longitude: number;
   } | null>(null);
   const [currentLocation, setCurrentLocation] = useState({
-    latitude: 37.78825,
-    longitude: -122.4324,
+    latitude: 42.7305, 
+    longitude: -73.6785,
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
@@ -69,6 +81,15 @@ export default function Home() {
 
     const response = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
     const data = await response.json();
+
+    const sortedIntersections = data.elements
+      .map((intersection) => ({
+        ...intersection,
+        distance: calculateDistance(latitude, longitude, intersection.lat, intersection.lon),
+      }))
+      .sort((a, b) => a.distance - b.distance);
+
+    console.log(sortedIntersections);
     setIntersections(data.elements); // Set the intersection nodes
   };
 
