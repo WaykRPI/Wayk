@@ -33,6 +33,7 @@ import { Modalize } from "react-native-modalize";
 import { Float } from "react-native/Libraries/Types/CodegenTypes";
 import { getWalkingDirections, RouteData } from '../../services/directionService';
 import { DirectionsPanel } from '../../components/DirectionsPanel';
+import { ChatModal } from "../../components/ChatModal";
 
 
 const ANIMATION_INTERVAL = 16;
@@ -68,6 +69,11 @@ interface ActiveUser {
   longitude: number;
   last_updated: string;
   user_email: string;
+}
+
+interface ChatState {
+  isOpen: boolean;
+  selectedUser: ActiveUser | null;
 }
 
 interface Report {
@@ -177,6 +183,11 @@ export default function Home() {
     }
   };
 
+  const chatModalizeRef = useRef<Modalize>(null);
+  const [chatState, setChatState] = useState<ChatState>({
+    isOpen: false,
+    selectedUser: null,
+  });
 
   const StatusIndicator = ({
     isFollowing,
@@ -673,6 +684,16 @@ export default function Home() {
             title={activeUser.user_email?.split("@")[0] || "Anonymous"}
             anchor={{ x: 0.5, y: 0.5 }}
             zIndex={100}
+            onPress={() => {
+              if (activeUser.user_id !== user?.id) {
+                // Prevent opening chat with yourself
+                setChatState({
+                  isOpen: true,
+                  selectedUser: activeUser,
+                });
+                chatModalizeRef.current?.open();
+              }
+            }}
           >
             <UserMarker color="#10b981" size={OTHER_MARKER_SIZE} />
           </Marker>
@@ -821,6 +842,26 @@ export default function Home() {
             <Text style={styles.closeButtonText}>Close</Text>
           </Pressable>
         </View>
+      </Modalize>
+
+      <Modalize
+        ref={chatModalizeRef}
+        adjustToContentHeight
+        onClose={() => {
+          setChatState({ isOpen: false, selectedUser: null });
+        }}
+      >
+        {chatState.isOpen && chatState.selectedUser && (
+          <ChatModal
+            modalizeRef={chatModalizeRef}
+            currentUser={user}
+            selectedUser={chatState.selectedUser}
+            onClose={() => {
+              setChatState({ isOpen: false, selectedUser: null });
+              chatModalizeRef.current?.close();
+            }}
+          />
+        )}
       </Modalize>
 
       <Modal

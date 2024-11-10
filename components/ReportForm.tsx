@@ -43,6 +43,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
    const [image, setImage] = useState<string | null>(null);
    const [accuracy, setAccuracy] = useState<number | null>(null);
    const [selectedType, setSelectedType] = useState<string>(obstacleTypes[0]);
+   const [aiResponse, setAiResponse] = useState<string>('');
 
    const handleTakePhoto = async () => {
       const result = await ImagePicker.launchCameraAsync({
@@ -221,6 +222,80 @@ const ReportForm: React.FC<ReportFormProps> = ({
       }
    };
 
+   const generateDescription = async () => {
+      if (!image || !GEN_AI_KEY) {
+         setError('No image available or API key not configured');
+         return;
+      }
+
+      setLoading(true);
+      try {
+         const headers = {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': GEN_AI_KEY,
+         };
+
+         const payload = {
+            contents: [{
+               parts: [
+                  {
+                     text: "Analyze this image of a sidewalk or walking area. Return ONLY a JSON object in this exact format, nothing else: { \"description\": \"<brief 1-2 sentence description>\", \"type\": \"<one of: Construction, Road Damage, Sidewalk Obstruction, Traffic Signal Issue, Other>\" }"
+                  },
+                  {
+                     inline_data: {
+                        mime_type: 'image/jpeg',
+                        data: image.replace(/^data:image\/[a-z]+;base64,/, ''),
+                     },
+                  },
+               ],
+            }],
+         };
+
+         const response = await fetch(
+            'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent',
+            {
+               method: 'POST',
+               headers,
+               body: JSON.stringify(payload),
+            }
+         );
+
+         if (!response.ok) {
+            throw new Error(`API request failed with status ${response.status}`);
+         }
+
+         const result = await response.json();
+         const analysis_text = result.candidates[0].content.parts[0].text;
+         console.log('Raw AI response:', analysis_text);
+
+         // Try to clean the response text before parsing
+         const jsonMatch = analysis_text.match(/\{[\s\S]*\}/);
+         if (!jsonMatch) {
+            throw new Error('No JSON object found in response');
+         }
+
+         const cleanJson = jsonMatch[0].replace(/[\u201C\u201D]/g, '"'); // Replace smart quotes
+         const parsedResponse = JSON.parse(cleanJson);
+         
+         if (!parsedResponse.description || !parsedResponse.type) {
+            throw new Error('Invalid response format');
+         }
+
+         setDescription(parsedResponse.description);
+         if (obstacleTypes.includes(parsedResponse.type)) {
+            setSelectedType(parsedResponse.type);
+         }
+         setAiResponse(`AI suggested: ${parsedResponse.description} (Type: ${parsedResponse.type})`);
+         
+      } catch (error) {
+         console.error('Error details:', error);
+         setError('Failed to generate description. Please try again.');
+         setAiResponse('');
+      } finally {
+         setLoading(false);
+      }
+   };
+
    const handleSubmit = async () => {
       if (!latitude || !longitude) {
          setError('Please provide latitude and longitude.');
@@ -286,14 +361,33 @@ const ReportForm: React.FC<ReportFormProps> = ({
             {image ? (
                <View style={styles.imagePreviewContainer}>
                   <Image source={{ uri: image }} style={styles.imagePreview} />
-                  <TouchableOpacity
-                     style={[styles.typeButton, styles.typeButtonActive]}
-                     onPress={pickImage}
-                  >
-                     <Text style={styles.typeButtonTextActive}>
-                        Change Photo
-                     </Text>
-                  </TouchableOpacity>
+                  <View style={styles.typeContainer}>
+                     <TouchableOpacity
+                        style={[
+                           styles.typeButton,
+                           styles.halfWidthButton,
+                        ]}
+                        onPress={pickImage}
+                     >
+                        <Text style={styles.typeButtonText}>Change Photo</Text>
+                     </TouchableOpacity>
+                     <TouchableOpacity
+                        style={[
+                           styles.typeButton,
+                           styles.halfWidthButton,
+                           loading && styles.typeButtonDisabled,
+                        ]}
+                        onPress={generateDescription}
+                        disabled={loading}
+                     >
+                        <Text style={styles.typeButtonText}>
+                           {loading ? 'Generating...' : 'Generate Description'}
+                        </Text>
+                     </TouchableOpacity>
+                  </View>
+                  {aiResponse ? (
+                     <Text style={styles.aiResponse}>{aiResponse}</Text>
+                  ) : null}
                </View>
             ) : (
                <TouchableOpacity
@@ -526,6 +620,41 @@ const styles = StyleSheet.create({
    changePhotoText: {
       color: '#fff',
       fontWeight: '600',
+   },
+   imageButtonsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      width: '100%',
+      gap: 10,
+   },
+   imageButton: {
+      flex: 1,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+   },
+   generateButton: {
+      backgroundColor: '#0ea5e9',
+   },
+   buttonText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: '600',
+   },
+   typeButtonDisabled: {
+      backgroundColor: '#cccccc',
+      borderColor: '#cccccc',
+   },
+   aiResponse: {
+      marginTop: 10,
+      padding: 10,
+      backgroundColor: '#f0f0f0',
+      borderRadius: 8,
+      color: '#666',
+      fontSize: 14,
+      width: '100%',
    },
 });
 
