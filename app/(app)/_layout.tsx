@@ -7,7 +7,8 @@ export default function AppLayout() {
         name="home" 
         options={{ 
           title: 'Home',
-          headerBackVisible: false 
+          headerBackVisible: false, 
+          headerShown: false,
         }} 
       />
     </Stack>
