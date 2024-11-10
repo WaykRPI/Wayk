@@ -99,8 +99,9 @@ export default function Home() {
   const [showDirections, setShowDirections] = useState(false);
   const [selectedSearchPlace, setSelectedSearchPlace] = useState(null);
 
-  const handlePlaceSelect = (place: any) => {
-    if (!place || !place.latitude || !place.longitude) return;
+  const handlePlaceSelect = async (place: any) => {
+    console.log("Place selected:", place);
+    if (!place || !place.latitude || !place.longitude || !location) return;
     
     setSelectedSearchPlace(place);
     
@@ -111,14 +112,32 @@ export default function Home() {
         longitude: place.longitude,
       },
       zoom: 17,
-      duration: 1000, // Smooth animation over 1 second
+      duration: 1000,
     });
   
-    // Optionally set a marker or perform other actions
+    // Set destination
     setDestination({
       latitude: place.latitude,
       longitude: place.longitude,
     });
+  
+    // Get and draw the route
+    try {
+      setIsLoading(true);
+      const routeData = await getWalkingDirections(
+        location.coords.latitude,
+        location.coords.longitude,
+        place.latitude,
+        place.longitude
+      );
+      setRoute(routeData);
+      setShowDirections(true);
+    } catch (error) {
+      console.error('Error getting directions:', error);
+      // Optionally show an error message to the user
+    } finally {
+      setIsLoading(false);
+    }
   
     // Exit routing mode if active
     if (isRoutingMode) {
@@ -133,7 +152,6 @@ export default function Home() {
     // Disable follow mode when selecting a place
     setIsFollowingUser(false);
   };
-  
 
   const handleMapPress = async (event: any) => {
     if (isRoutingMode && location) {
@@ -181,16 +199,22 @@ export default function Home() {
   
     return (
       <>
-        <View style={[styles.statusContainer, { backgroundColor: bgColor }]}>
+        {/* Status indicator at the top */}
+        <View style={styles.statusContainer}>
           <Text style={styles.statusText}>{status}</Text>
         </View>
+        
+        {/* Search container positioned lower */}
         <View style={styles.searchContainer}>
-          <PlacesSearch onPlaceSelect={handlePlaceSelect} />
+          <PlacesSearch 
+            onPlaceSelect={handlePlaceSelect}
+            onFocus={() => setIsSearchFocused(true)}
+            onBlur={() => setIsSearchFocused(false)}
+          />
         </View>
       </>
     );
   };
-
   const targetLocation = useRef({
     latitude: 37.78825,
     longitude: -122.4324,
@@ -1132,14 +1156,6 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     flex: 1,
   },
-  searchContainer: {
-    position: 'absolute',
-    top: 90, // Below the status indicator
-    left: 20,
-    right: 20,
-    zIndex: 1, // Ensure it's above the map
-    backgroundColor: 'transparent',
-  },
   searchOverlay: {
     position: 'absolute',
     top: 0,
@@ -1155,12 +1171,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
+    backgroundColor: "#64748b",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
-    zIndex: 1,
+    zIndex: 2,
+  },
+
+  searchContainer: {
+    position: "absolute",
+    top: 160, // Adjust this value to move the search bar up or down
+    left: 20,
+    right: 20,
+    zIndex: 2,
   },
   statusText: {
     color: "#fff",

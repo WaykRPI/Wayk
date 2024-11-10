@@ -61,7 +61,7 @@ const PlacesSearch = ({ onPlaceSelect }) => {
     }
   };
 
-  const handlePlaceSelect = (place) => {
+  const handlePlaceSearch = (place) => {
     onPlaceSelect(place);
     setSearchQuery(place.name);
     setResults([]);
