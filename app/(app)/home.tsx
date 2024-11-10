@@ -9,18 +9,24 @@ import {
   PanResponder,
   Modal,
   ScrollView,
-} from 'react-native';
-import { useAuth } from '../../hooks/useAuth';
-import { useState, useEffect, useRef } from 'react';
-import MapView, { Marker, PROVIDER_GOOGLE, MapType, Camera, Callout } from 'react-native-maps';
-import * as Location from 'expo-location';
-import { supabase } from '../lib/supabase';
-import { useLocationContext } from '../../contexts/LocationContext';
-import ReportForm from '../../components/ReportForm';
-import Svg, { Path } from 'react-native-svg';
-import { Map, Layers, Navigation2 } from 'lucide-react-native';
-import { Modalize } from 'react-native-modalize';
-import { Float } from 'react-native/Libraries/Types/CodegenTypes';
+} from "react-native";
+import { useAuth } from "../../hooks/useAuth";
+import { useState, useEffect, useRef } from "react";
+import MapView, {
+  Marker,
+  PROVIDER_GOOGLE,
+  MapType,
+  Camera,
+  Callout,
+} from "react-native-maps";
+import * as Location from "expo-location";
+import { supabase } from "../lib/supabase";
+import { useLocationContext } from "../../contexts/LocationContext";
+import ReportForm from "../../components/ReportForm";
+import Svg, { Path } from "react-native-svg";
+import { Map, Layers, Navigation2 } from "lucide-react-native";
+import { Modalize } from "react-native-modalize";
+import { Float } from "react-native/Libraries/Types/CodegenTypes";
 
 const ANIMATION_INTERVAL = 16;
 const SERVER_UPDATE_INTERVAL = 1000;
@@ -28,8 +34,17 @@ const INTERPOLATION_FACTOR = 0.15;
 const USER_MARKER_SIZE = 32;
 const OTHER_MARKER_SIZE = 24;
 
-const UserMarker = ({ rotation = 0, color = '#0ea5e9', size = OTHER_MARKER_SIZE }) => (
-  <Svg height={size} width={size} viewBox="0 0 24 24" style={{ transform: [{ rotate: `${rotation}deg` }] }}>
+const UserMarker = ({
+  rotation = 0,
+  color = "#0ea5e9",
+  size = OTHER_MARKER_SIZE,
+}) => (
+  <Svg
+    height={size}
+    width={size}
+    viewBox="0 0 24 24"
+    style={{ transform: [{ rotate: `${rotation}deg` }] }}
+  >
     <Path
       d="M12 2L2 22L12 18L22 22L12 2Z"
       fill={color}
@@ -49,14 +64,14 @@ interface ActiveUser {
 }
 
 interface Report {
-   id: string;
-   type: string;
-   latitude: Float;
-   longitude: Float;
-   description: string;
-   image_url?: string;
-   accuracy_score?: Number;
-   ai_analysis?: string;
+  id: string;
+  type: string;
+  latitude: Float;
+  longitude: Float;
+  description: string;
+  image_url?: string;
+  accuracy_score?: Number;
+  ai_analysis?: string;
 }
 
 export default function Home() {
@@ -68,17 +83,23 @@ export default function Home() {
   const [isUserInteracting, setIsUserInteracting] = useState(false);
   const [isFollowingUser, setIsFollowingUser] = useState(true);
 
-  const StatusIndicator = ({ isFollowing, isReportMode }: { isFollowing: boolean; isReportMode: boolean }) => {
-    let status = 'Manual Control';
-    let bgColor = '#64748b';
+  const StatusIndicator = ({
+    isFollowing,
+    isReportMode,
+  }: {
+    isFollowing: boolean;
+    isReportMode: boolean;
+  }) => {
+    let status = "Manual Control";
+    let bgColor = "#64748b";
 
     if (isFollowing) {
-      status = 'Following';
-      bgColor = '#10b981';
+      status = "Following";
+      bgColor = "#10b981";
     }
     if (isReportMode) {
-      status = 'Report Mode';
-      bgColor = '#ef4444';
+      status = "Report Mode";
+      bgColor = "#ef4444";
     }
 
     return (
@@ -93,7 +114,7 @@ export default function Home() {
     longitude: -122.4324,
     heading: 0,
   });
-  
+
   const currentAnimatedLocation = useRef({
     latitude: 37.78825,
     longitude: -122.4324,
@@ -113,7 +134,7 @@ export default function Home() {
   });
 
   const modalizeRef = useRef<Modalize>(null);
-  const [mapType, setMapType] = useState<MapType>('standard');
+  const [mapType, setMapType] = useState<MapType>("standard");
   const [camera, setCamera] = useState<Camera>({
     center: {
       latitude: 37.78825,
@@ -142,7 +163,11 @@ export default function Home() {
     modalizeRef.current?.close();
   };
 
-  const interpolateValue = (current: number, target: number, factor: number): number => {
+  const interpolateValue = (
+    current: number,
+    target: number,
+    factor: number
+  ): number => {
     return current + (target - current) * factor;
   };
 
@@ -152,13 +177,17 @@ export default function Home() {
     return heading;
   };
 
-  const interpolateHeading = (current: number, target: number, factor: number): number => {
+  const interpolateHeading = (
+    current: number,
+    target: number,
+    factor: number
+  ): number => {
     let diff = ((target - current + 180) % 360) - 180;
     return normalizeHeading(current + diff * factor);
   };
 
   const toggleControlMode = () => {
-    setIsFollowingUser(prev => {
+    setIsFollowingUser((prev) => {
       const newFollowingState = !prev;
       if (newFollowingState) {
         const centerLatitude = currentAnimatedLocation.current.latitude;
@@ -187,13 +216,33 @@ export default function Home() {
   };
 
   const animate = () => {
-    const { latitude: targetLat, longitude: targetLon, heading: targetHeading } = targetLocation.current;
-    const { latitude: currentLat, longitude: currentLon, heading: currentHeading } = currentAnimatedLocation.current;
+    const {
+      latitude: targetLat,
+      longitude: targetLon,
+      heading: targetHeading,
+    } = targetLocation.current;
+    const {
+      latitude: currentLat,
+      longitude: currentLon,
+      heading: currentHeading,
+    } = currentAnimatedLocation.current;
 
     // Smoothly interpolate all values
-    const newLat = interpolateValue(currentLat, targetLat, INTERPOLATION_FACTOR);
-    const newLon = interpolateValue(currentLon, targetLon, INTERPOLATION_FACTOR);
-    const newHeading = interpolateHeading(currentHeading, targetHeading, INTERPOLATION_FACTOR);
+    const newLat = interpolateValue(
+      currentLat,
+      targetLat,
+      INTERPOLATION_FACTOR
+    );
+    const newLon = interpolateValue(
+      currentLon,
+      targetLon,
+      INTERPOLATION_FACTOR
+    );
+    const newHeading = interpolateHeading(
+      currentHeading,
+      targetHeading,
+      INTERPOLATION_FACTOR
+    );
 
     // Update the animated values
     currentAnimatedLocation.current = {
@@ -204,7 +253,7 @@ export default function Home() {
 
     // Only update camera if in following mode
     if (isFollowingUser && !isReportMode) {
-      setCamera(prev => ({
+      setCamera((prev) => ({
         ...prev,
         center: {
           latitude: newLat,
@@ -215,7 +264,7 @@ export default function Home() {
     }
 
     // Always update current location for marker position
-    setCurrentLocation(prev => ({
+    setCurrentLocation((prev) => ({
       ...prev,
       latitude: newLat,
       longitude: newLon,
@@ -226,7 +275,7 @@ export default function Home() {
 
   const handleLocationUpdate = async (location: Location.LocationObject) => {
     const { latitude, longitude, heading } = location.coords;
-    
+
     targetLocation.current = {
       latitude,
       longitude,
@@ -236,34 +285,32 @@ export default function Home() {
     const now = Date.now();
     if (now - lastServerUpdate.current >= SERVER_UPDATE_INTERVAL && user) {
       lastServerUpdate.current = now;
-      
+
       try {
         const { data: existingUser } = await supabase
-          .from('active_users')
-          .select('id')
-          .eq('user_id', user.id)
+          .from("active_users")
+          .select("id")
+          .eq("user_id", user.id)
           .single();
 
         if (existingUser) {
           await supabase
-            .from('active_users')
+            .from("active_users")
             .update({
               latitude,
               longitude,
             })
-            .eq('user_id', user.id);
+            .eq("user_id", user.id);
         } else {
-          await supabase
-            .from('active_users')
-            .insert({
-              user_id: user.id,
-              latitude,
-              longitude,
-              user_email: user.email
-            });
+          await supabase.from("active_users").insert({
+            user_id: user.id,
+            latitude,
+            longitude,
+            user_email: user.email,
+          });
         }
       } catch (error) {
-        console.warn('Failed to update server location:', error);
+        console.warn("Failed to update server location:", error);
       }
     }
   };
@@ -277,10 +324,10 @@ export default function Home() {
   useEffect(() => {
     const startTracking = async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
+      if (status !== "granted") return;
 
       await Location.enableNetworkProviderAsync();
-      
+
       const locationSubscription = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.BestForNavigation,
@@ -301,20 +348,18 @@ export default function Home() {
     };
 
     const cleanup = startTracking();
-    
+
     return () => {
-      cleanup.then(cleanupFn => cleanupFn?.());
+      cleanup.then((cleanupFn) => cleanupFn?.());
       if (user) {
-        supabase.from('active_users').delete().eq('user_id', user.id);
+        supabase.from("active_users").delete().eq("user_id", user.id);
       }
     };
   }, [user]);
 
   useEffect(() => {
     const fetchActiveUsers = async () => {
-      const { data, error } = await supabase
-        .from('active_users')
-        .select('*');
+      const { data, error } = await supabase.from("active_users").select("*");
       if (data && !error) {
         setActiveUsers(data);
       }
@@ -324,26 +369,32 @@ export default function Home() {
 
   useEffect(() => {
     const subscription = supabase
-      .channel('active_users')
+      .channel("active_users")
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'active_users'
+          event: "*",
+          schema: "public",
+          table: "active_users",
         },
         (payload) => {
-          setActiveUsers(current => {
+          setActiveUsers((current) => {
             const activeTimeout = new Date();
             activeTimeout.setMinutes(activeTimeout.getMinutes() - 5);
 
-            const filtered = current.filter(u =>
-              new Date(u.last_updated) > activeTimeout &&
-              u.user_id !== user?.id
+            const filtered = current.filter(
+              (u) =>
+                new Date(u.last_updated) > activeTimeout &&
+                u.user_id !== user?.id
             );
 
-            if (payload.eventType !== 'DELETE' && payload.new.user_id !== user?.id) {
-              const exists = filtered.findIndex(u => u.user_id === payload.new.user_id);
+            if (
+              payload.eventType !== "DELETE" &&
+              payload.new.user_id !== user?.id
+            ) {
+              const exists = filtered.findIndex(
+                (u) => u.user_id === payload.new.user_id
+              );
               if (exists >= 0) {
                 filtered[exists] = payload.new as ActiveUser;
               } else {
@@ -371,12 +422,12 @@ export default function Home() {
         longitudeDelta: 0.0421,
       });
 
-      setCamera(prev => ({
+      setCamera((prev) => ({
         ...prev,
         center: {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
-        }
+        },
       }));
     }
   }, [location]);
@@ -392,22 +443,26 @@ export default function Home() {
     `;
 
     try {
-      const response = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
+      const response = await fetch(
+        `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(
+          query
+        )}`
+      );
       const data = await response.json();
       setIntersections(data.elements);
     } catch (error) {
-      console.error('Error fetching intersections:', error);
+      console.error("Error fetching intersections:", error);
     }
   };
 
   const fetchReports = async () => {
     try {
-      const { data, error } = await supabase.from('reports').select('*');
+      const { data, error } = await supabase.from("reports").select("*");
       if (error) throw error;
       setReports(data);
       console.log(data, error);
     } catch (error) {
-      console.error('Error fetching reports:', error);
+      console.error("Error fetching reports:", error);
     }
   };
 
@@ -429,7 +484,7 @@ export default function Home() {
   };
 
   const toggleReportMode = () => {
-    setReportMode(prev => !prev);
+    setReportMode((prev) => !prev);
     setIsFollowingUser(false);
     setSelectedLocation(null);
   };
@@ -443,589 +498,596 @@ export default function Home() {
   };
 
   return (
-     <View style={{ flex: 1 }}>
-        <MapView
-           ref={mapRef}
-           style={{ flex: 1 }}
-           onPress={handleLocationSelect}
-           customMapStyle={mapStyle}
-           camera={camera}
-           followsUserLocation={true}
-           minZoomLevel={15}
-           maxZoomLevel={20}
-           rotateEnabled={true}
-           pitchEnabled={true}
-           toolbarEnabled={false}
-           onMapReady={() => {
-              mapRef.current?.setNativeProps({
-                 renderToHardwareTextureAndroid: true,
-                 shouldRasterizeIOS: true,
-              });
-           }}
-           onRegionChangeComplete={() => {
-              // Force center on user when map is moved
-              if (!isReportMode) {
-                 //centerOnUser();
-              }
-           }}
-        >
-           {location && (
-              <Marker
-                 coordinate={{
-                    latitude: currentAnimatedLocation.current.latitude,
-                    longitude: currentAnimatedLocation.current.longitude,
-                 }}
-                 title='You'
-                 anchor={{ x: 0.5, y: 0.5 }}
-                 rotation={currentAnimatedLocation.current.heading}
-                 zIndex={1000}
-              >
-                 <UserMarker color='#0ea5e9' size={USER_MARKER_SIZE} />
-              </Marker>
-           )}
+    <View style={{ flex: 1 }}>
+      <MapView
+        ref={mapRef}
+        style={{ flex: 1 }}
+        provider={PROVIDER_GOOGLE}
+        initialRegion={currentLocation}
+        showsUserLocation={false}
+        showsMyLocationButton={false}
+        showsCompass
+        showsBuildings={true}
+        showsTraffic={true}
+        mapType={mapType}
+        onPress={handleLocationSelect}
+        customMapStyle={mapStyle}
+        followsUserLocation={false}
+        minZoomLevel={15}
+        maxZoomLevel={20}
+        rotateEnabled={true}
+        pitchEnabled={true}
+        toolbarEnabled={false}
+        onPanDrag={() => {
+          setIsUserInteracting(true);
+          handleMapMovement();
+        }}
+        onTouchStart={() => {
+          setIsUserInteracting(true);
+        }}
+        onTouchEnd={() => {
+          setIsUserInteracting(false);
+        }}
+        onRegionChangeComplete={(region) => {
+          if (isUserInteracting) {
+            handleMapMovement();
+          }
+        }}
+        onMapReady={() => {
+          mapRef.current?.setNativeProps({
+            renderToHardwareTextureAndroid: true,
+            shouldRasterizeIOS: true,
+          });
+        }}
+      >
+        {location && (
+          <Marker
+            coordinate={{
+              latitude: currentAnimatedLocation.current.latitude,
+              longitude: currentAnimatedLocation.current.longitude,
+            }}
+            title="You"
+            anchor={{ x: 0.5, y: 0.5 }}
+            rotation={currentAnimatedLocation.current.heading}
+            zIndex={1000}
+          >
+            <UserMarker color="#0ea5e9" size={USER_MARKER_SIZE} />
+          </Marker>
+        )}
 
-           {activeUsers.map((activeUser) => (
-              <Marker
-                 key={activeUser.id}
-                 coordinate={{
-                    latitude: activeUser.latitude,
-                    longitude: activeUser.longitude,
-                 }}
-                 title={activeUser.user_email?.split('@')[0] || 'Anonymous'}
-                 anchor={{ x: 0.5, y: 0.5 }}
-                 zIndex={100}
-              >
-                 <UserMarker color='#10b981' size={OTHER_MARKER_SIZE} />
-              </Marker>
-           ))}
+        {activeUsers.map((activeUser) => (
+          <Marker
+            key={activeUser.id}
+            coordinate={{
+              latitude: activeUser.latitude,
+              longitude: activeUser.longitude,
+            }}
+            title={activeUser.user_email?.split("@")[0] || "Anonymous"}
+            anchor={{ x: 0.5, y: 0.5 }}
+            zIndex={100}
+          >
+            <UserMarker color="#10b981" size={OTHER_MARKER_SIZE} />
+          </Marker>
+        ))}
 
-           {selectedLocation && (
-              <Marker
-                 coordinate={selectedLocation}
-                 title='Selected Location'
-                 description='Tap to confirm this location'
-              >
-                 <Image
-                    source={{
-                       uri: 'https://img.icons8.com/ios-filled/50/0ea5e9/marker.png',
-                    }}
-                    style={{ width: 30, height: 30 }}
-                 />
-              </Marker>
-           )}
+        {selectedLocation && (
+          <Marker
+            coordinate={selectedLocation}
+            title="Selected Location"
+            description="Tap to confirm this location"
+          >
+            <Image
+              source={{
+                uri: "https://img.icons8.com/ios-filled/50/0ea5e9/marker.png",
+              }}
+              style={{ width: 30, height: 30 }}
+            />
+          </Marker>
+        )}
 
-           {intersections.map((intersection) => (
-              <Marker
-                 key={intersection.id}
-                 coordinate={{
-                    latitude: intersection.lat,
-                    longitude: intersection.lon,
-                 }}
-                 title='Intersection'
-                 description='Traffic signal or crossing'
-              >
-                 <Image
-                    source={{
-                       uri: 'https://img.icons8.com/ios-filled/50/ffcc00/marker.png',
-                    }}
-                    style={{ width: 30, height: 30 }}
-                 />
-              </Marker>
-           ))}
+        {intersections.map((intersection) => (
+          <Marker
+            key={intersection.id}
+            coordinate={{
+              latitude: intersection.lat,
+              longitude: intersection.lon,
+            }}
+            title="Intersection"
+            description="Traffic signal or crossing"
+          >
+            <Image
+              source={{
+                uri: "https://img.icons8.com/ios-filled/50/ffcc00/marker.png",
+              }}
+              style={{ width: 30, height: 30 }}
+            />
+          </Marker>
+        ))}
 
-           {reports.map((report) => (
-              <Marker
-                 key={report.id}
-                 coordinate={{
-                    latitude: report.latitude,
-                    longitude: report.longitude,
-                 }}
-                 onPress={() => handleMarkerPress(report)}
-              >
-                 {report.image_url ? (
-                    <Image
-                       source={{ uri: report.image_url }}
-                       style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 20,
-                          borderWidth: 2,
-                          borderColor: '#fff',
-                       }}
-                       resizeMode='cover'
-                    />
-                 ) : (
-                    <View
-                       style={{
-                          backgroundColor: '#ef4444',
-                          width: 20,
-                          height: 20,
-                          borderRadius: 10,
-                          borderWidth: 2,
-                          borderColor: '#fff',
-                       }}
-                    />
-                 )}
-              </Marker>
-           ))}
-        </MapView>
+        {reports.map((report) => (
+          <Marker
+            key={report.id}
+            coordinate={{
+              latitude: report.latitude,
+              longitude: report.longitude,
+            }}
+            onPress={() => handleMarkerPress(report)}
+          >
+            {report.image_url ? (
+              <Image
+                source={{ uri: report.image_url }}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  borderWidth: 2,
+                  borderColor: "#fff",
+                }}
+                resizeMode="cover"
+              />
+            ) : (
+              <View
+                style={{
+                  backgroundColor: "#ef4444",
+                  width: 20,
+                  height: 20,
+                  borderRadius: 10,
+                  borderWidth: 2,
+                  borderColor: "#fff",
+                }}
+              />
+            )}
+          </Marker>
+        ))}
+      </MapView>
+      <StatusIndicator
+        isFollowing={isFollowingUser}
+        isReportMode={isReportMode}
+      />
+      <Pressable
+        style={styles.mapTypeButton}
+        onPress={() =>
+          setMapType((prev) => (prev === "standard" ? "hybrid" : "standard"))
+        }
+      >
+        {mapType === "standard" ? (
+          <Layers size={24} color="#fff" />
+        ) : (
+          <Map size={24} color="#fff" />
+        )}
+      </Pressable>
 
-        <Pressable
-           style={styles.mapTypeButton}
-           onPress={() =>
-              setMapType((prev) =>
-                 prev === 'standard' ? 'hybrid' : 'standard'
-              )
-           }
-        >
-           {mapType === 'standard' ? (
-              <Layers size={24} color='#fff' />
-           ) : (
-              <Map size={24} color='#fff' />
-           )}
-        </Pressable>
-
-        <Pressable
-           style={[
-          styles.modeToggleButton, 
-          isFollowingUser && styles.modeToggleButtonActive
+      <Pressable
+        style={[
+          styles.modeToggleButton,
+          isFollowingUser && styles.modeToggleButtonActive,
         ]}
-           onPress={toggleControlMode}
-        >
-           <Navigation2 
-          size={24} 
-          color="#fff" 
-          style={{ 
-            transform: [{ rotate: isFollowingUser ? '0deg' : '45deg' }],
-            opacity: isFollowingUser ? 1 : 0.8
+        onPress={toggleControlMode}
+      >
+        <Navigation2
+          size={24}
+          color="#fff"
+          style={{
+            transform: [{ rotate: isFollowingUser ? "0deg" : "45deg" }],
+            opacity: isFollowingUser ? 1 : 0.8,
           }}
         />
-        </Pressable>
+      </Pressable>
 
+      <Pressable
+        style={[styles.toggleButton, isReportMode && styles.toggleButtonActive]}
+        onPress={toggleReportMode}
+      >
+        <Text style={styles.toggleButtonText}>
+          {isReportMode ? "Exit Report Mode" : "Enter Report Mode"}
+        </Text>
+      </Pressable>
+
+      <Modalize
+        ref={modalizeRef}
+        adjustToContentHeight
+        onClosed={() => setModalVisible(false)}
+      >
+        <View style={styles.modalContent}>
+          <ReportForm
+            latitude={selectedLocation?.latitude.toString() || ""}
+            longitude={selectedLocation?.longitude.toString() || ""}
+            onReportSubmitted={handleReportSubmitted}
+          />
+          <Pressable onPress={closeModal} style={styles.closeButton}>
+            <Text style={styles.closeButtonText}>Close</Text>
+          </Pressable>
+        </View>
+      </Modalize>
+
+      <Modal
+        visible={isImageModalVisible}
+        transparent={true}
+        onRequestClose={() => {
+          setIsImageModalVisible(false);
+          setSelectedReport(null);
+        }}
+      >
         <Pressable
-           style={[
-              styles.toggleButton,
-              isReportMode && styles.toggleButtonActive,
-           ]}
-           onPress={toggleReportMode}
+          style={styles.imageModalOverlay}
+          onPress={() => {
+            setIsImageModalVisible(false);
+            setSelectedReport(null);
+          }}
         >
-           <Text style={styles.toggleButtonText}>
-              {isReportMode ? 'Exit Report Mode' : 'Enter Report Mode'}
-           </Text>
-        </Pressable>
+          <View style={styles.imageModalContent}>
+            <ScrollView style={styles.scrollView}>
+              {selectedImage && (
+                <Image
+                  source={{ uri: selectedImage }}
+                  style={styles.imageModalImage}
+                  resizeMode="cover"
+                />
+              )}
+              <Text>
+                {selectedReport && (
+                  <View style={styles.reportDetails}>
+                    <View style={styles.reportRow}>
+                      <Text style={styles.reportLabel}>Type:</Text>
+                      <Text style={styles.reportValue}>
+                        {selectedReport.type}
+                      </Text>
+                    </View>
 
-        <Modalize
-           ref={modalizeRef}
-           adjustToContentHeight
-           onClosed={() => setModalVisible(false)}
-        >
-           <View style={styles.modalContent}>
-              <ReportForm
-                 latitude={selectedLocation?.latitude.toString() || ''}
-                 longitude={selectedLocation?.longitude.toString() || ''}
-                 onReportSubmitted={handleReportSubmitted}
-              />
-              <Pressable onPress={closeModal} style={styles.closeButton}>
-                 <Text style={styles.closeButtonText}>Close</Text>
-              </Pressable>
-           </View>
-        </Modalize>
+                    <View style={styles.reportRow}>
+                      <Text style={styles.reportLabel}>Description:</Text>
+                      <Text style={styles.reportValue}>
+                        {selectedReport.description ||
+                          "No description provided"}
+                      </Text>
+                    </View>
 
-        <Modal
-           visible={isImageModalVisible}
-           transparent={true}
-           onRequestClose={() => {
-              setIsImageModalVisible(false);
-              setSelectedReport(null);
-           }}
-        >
-           <Pressable
-              style={styles.imageModalOverlay}
-              onPress={() => {
-                 setIsImageModalVisible(false);
-                 setSelectedReport(null);
-              }}
-           >
-              <View style={styles.imageModalContent}>
-                 <ScrollView style={styles.scrollView}>
-                    {selectedImage && (
-                       <Image
-                          source={{ uri: selectedImage }}
-                          style={styles.imageModalImage}
-                          resizeMode='cover'
-                       />
+                    {selectedReport.accuracy_score !== undefined && (
+                      <View style={styles.reportRow}>
+                        <Text style={styles.reportLabel}>Accuracy Score:</Text>
+                        <Text style={styles.reportValue}>
+                          {String(selectedReport.accuracy_score)}
+                        </Text>
+                      </View>
                     )}
-                    <Text>
-                       {selectedReport && (
-                          <View style={styles.reportDetails}>
-                             <View style={styles.reportRow}>
-                                <Text style={styles.reportLabel}>Type:</Text>
-                                <Text style={styles.reportValue}>
-                                   {selectedReport.type}
-                                </Text>
-                             </View>
 
-                             <View style={styles.reportRow}>
-                                <Text style={styles.reportLabel}>
-                                   Description:
-                                </Text>
-                                <Text style={styles.reportValue}>
-                                   {selectedReport.description ||
-                                      'No description provided'}
-                                </Text>
-                             </View>
-
-                             {selectedReport.accuracy_score !== undefined && (
-                                <View style={styles.reportRow}>
-                                   <Text style={styles.reportLabel}>
-                                      Accuracy Score:
-                                   </Text>
-                                   <Text style={styles.reportValue}>
-                                      {String(selectedReport.accuracy_score)}
-                                   </Text>
-                                </View>
-                             )}
-
-                             {selectedReport.ai_analysis && (
-                                <View style={styles.reportRow}>
-                                   <Text style={styles.reportLabel}>
-                                      AI Analysis:
-                                   </Text>
-                                   <Text style={styles.reportValue}>
-                                      {selectedReport.ai_analysis}
-                                   </Text>
-                                </View>
-                             )}
-                          </View>
-                       )}
-                    </Text>
-                 </ScrollView>
-                 <Pressable
-                    style={styles.imageModalCloseButton}
-                    onPress={() => {
-                       setIsImageModalVisible(false);
-                       setSelectedReport(null);
-                    }}
-                 >
-                    <Text style={styles.imageModalCloseText}>✕</Text>
-                 </Pressable>
-              </View>
-           </Pressable>
-        </Modal>
-     </View>
+                    {selectedReport.ai_analysis && (
+                      <View style={styles.reportRow}>
+                        <Text style={styles.reportLabel}>AI Analysis:</Text>
+                        <Text style={styles.reportValue}>
+                          {selectedReport.ai_analysis}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </Text>
+            </ScrollView>
+            <Pressable
+              style={styles.imageModalCloseButton}
+              onPress={() => {
+                setIsImageModalVisible(false);
+                setSelectedReport(null);
+              }}
+            >
+              <Text style={styles.imageModalCloseText}>✕</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   mapTypeButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 20,
     right: 20,
-    backgroundColor: '#0ea5e9',
+    backgroundColor: "#0ea5e9",
     borderRadius: 8,
     padding: 8,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3,
     elevation: 5,
   },
   modeToggleButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 80,
     right: 20,
-    backgroundColor: '#64748b',
+    backgroundColor: "#64748b",
     borderRadius: 8,
     padding: 8,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3,
     elevation: 5,
   },
   modeToggleButtonActive: {
-    backgroundColor: '#10b981',
+    backgroundColor: "#10b981",
   },
   toggleButton: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 20,
     right: 20,
-    backgroundColor: '#0ea5e9',
+    backgroundColor: "#0ea5e9",
     borderRadius: 30,
     paddingHorizontal: 20,
     paddingVertical: 15,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 5,
     elevation: 5,
   },
   toggleButtonActive: {
-    backgroundColor: '#ef4444',
+    backgroundColor: "#ef4444",
   },
   toggleButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   modalContent: {
     paddingHorizontal: 20,
     paddingVertical: 10,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
   dragIndicator: {
     width: 40,
     height: 5,
-    backgroundColor: '#ccc',
-    alignSelf: 'center',
+    backgroundColor: "#ccc",
+    alignSelf: "center",
     marginVertical: 10,
   },
   closeButton: {
     marginTop: 20,
-    alignItems: 'center',
+    alignItems: "center",
   },
   closeButtonText: {
-    color: '#0ea5e9',
+    color: "#0ea5e9",
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   buttonIcon: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   calloutContainer: {
     width: 200,
-    backgroundColor: 'white',
+    backgroundColor: "white",
     borderRadius: 8,
-    overflow: 'hidden',
-    shadowColor: '#000',
+    overflow: "hidden",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
   },
   calloutImage: {
-    width: '100%',
+    width: "100%",
     height: 120,
-    resizeMode: 'cover',
+    resizeMode: "cover",
   },
   calloutContent: {
     padding: 10,
   },
   calloutTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 4,
-    color: 'black',
+    color: "black",
   },
   calloutDescription: {
     fontSize: 14,
-    color: '#666',
+    color: "#666",
   },
   imageModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   imageModalContent: {
-    width: '90%',
-    maxHeight: '80%', // Increased to accommodate more content
-    backgroundColor: 'white',
+    width: "90%",
+    maxHeight: "80%", // Increased to accommodate more content
+    backgroundColor: "white",
     borderRadius: 10,
     padding: 15,
-    position: 'relative',
+    position: "relative",
   },
   imageModalImage: {
-    width: '100%',
+    width: "100%",
     height: 300,
     borderRadius: 8,
   },
   imageModalCloseButton: {
-    position: 'absolute',
+    position: "absolute",
     top: -15,
     right: -15,
-    backgroundColor: '#0ea5e9',
+    backgroundColor: "#0ea5e9",
     width: 30,
     height: 30,
     borderRadius: 15,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   imageModalCloseText: {
-    color: 'white',
+    color: "white",
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   reportDetails: {
     marginTop: 15,
     paddingTop: 15,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: "#eee",
   },
   reportType: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#0ea5e9',
+    fontWeight: "bold",
+    color: "#0ea5e9",
     marginBottom: 8,
   },
   reportDescription: {
     fontSize: 16,
-    color: '#374151',
+    color: "#374151",
     marginBottom: 8,
     lineHeight: 24,
   },
   reportAccuracy: {
     fontSize: 15,
-    color: '#059669',
+    color: "#059669",
     marginBottom: 8,
   },
   reportAnalysis: {
     fontSize: 15,
-    color: '#6B7280',
-    fontStyle: 'italic',
+    color: "#6B7280",
+    fontStyle: "italic",
     lineHeight: 22,
   },
   scrollView: {
-    maxHeight: '100%',
+    maxHeight: "100%",
   },
-  
+
   reportRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginBottom: 12,
-    flexWrap: 'wrap',
+    flexWrap: "wrap",
   },
-  
+
   reportLabel: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#374151',
+    fontWeight: "bold",
+    color: "#374151",
     marginRight: 8,
     minWidth: 100,
   },
-  
+
   reportValue: {
     fontSize: 16,
-    color: '#6B7280',
+    color: "#6B7280",
     flex: 1,
   },
   statusContainer: {
-    position: 'absolute',
+    position: "absolute",
     top: 40,
-    left: '50%',
+    left: "50%",
     transform: [{ translateX: -50 }],
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
   },
   statusText: {
-    color: '#fff',
-    fontWeight: 'bold',
+    color: "#fff",
+    fontWeight: "bold",
     fontSize: 14,
   },
 });
 
 const mapStyle = [
   {
-    elementType: 'geometry',
-    stylers: [{ color: '#1d1d1d' }],
+    elementType: "geometry",
+    stylers: [{ color: "#1d1d1d" }],
   },
   {
-    elementType: 'labels.icon',
-    stylers: [{ visibility: 'off' }],
+    elementType: "labels.icon",
+    stylers: [{ visibility: "off" }],
   },
   {
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#80b3ff' }],
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#80b3ff" }],
   },
   {
-    elementType: 'labels.text.stroke',
-    stylers: [{ color: '#1d1d1d' }],
+    elementType: "labels.text.stroke",
+    stylers: [{ color: "#1d1d1d" }],
   },
   {
-    featureType: 'administrative',
-    elementType: 'geometry',
-    stylers: [{ color: '#2e2e2e' }],
+    featureType: "administrative",
+    elementType: "geometry",
+    stylers: [{ color: "#2e2e2e" }],
   },
   {
-    featureType: 'administrative.country',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#6699cc' }],
+    featureType: "administrative.country",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#6699cc" }],
   },
   {
-    featureType: 'administrative.locality',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#80b3ff' }],
+    featureType: "administrative.locality",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#80b3ff" }],
   },
   {
-    featureType: 'poi',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#5a8fc1' }],
+    featureType: "poi",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#5a8fc1" }],
   },
   {
-    featureType: 'poi.park',
-    elementType: 'geometry',
-    stylers: [{ color: '#1a1a1a' }],
+    featureType: "poi.park",
+    elementType: "geometry",
+    stylers: [{ color: "#1a1a1a" }],
   },
   {
-    featureType: 'poi.park',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#4a90e2' }],
+    featureType: "poi.park",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#4a90e2" }],
   },
   {
-    featureType: 'road',
-    elementType: 'geometry.fill',
-    stylers: [{ color: '#2e2e2e' }],
+    featureType: "road",
+    elementType: "geometry.fill",
+    stylers: [{ color: "#2e2e2e" }],
   },
   {
-    featureType: 'road',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#6699cc' }],
+    featureType: "road",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#6699cc" }],
   },
   {
-    featureType: 'road.arterial',
-    elementType: 'geometry',
-    stylers: [{ color: '#3a3a3a' }],
+    featureType: "road.arterial",
+    elementType: "geometry",
+    stylers: [{ color: "#3a3a3a" }],
   },
   {
-    featureType: 'road.highway',
-    elementType: 'geometry',
-    stylers: [{ color: '#4a4a4a' }],
+    featureType: "road.highway",
+    elementType: "geometry",
+    stylers: [{ color: "#4a4a4a" }],
   },
   {
-    featureType: 'road.highway.controlled_access',
-    elementType: 'geometry',
-    stylers: [{ color: '#5b5b5b' }],
+    featureType: "road.highway.controlled_access",
+    elementType: "geometry",
+    stylers: [{ color: "#5b5b5b" }],
   },
   {
-    featureType: 'road.local',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#4a90e2' }],
+    featureType: "road.local",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#4a90e2" }],
   },
   {
-    featureType: 'transit',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#5a8fc1' }],
+    featureType: "transit",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#5a8fc1" }],
   },
   {
-    featureType: 'water',
-    elementType: 'geometry',
-    stylers: [{ color: '#1c3f5f' }],
+    featureType: "water",
+    elementType: "geometry",
+    stylers: [{ color: "#1c3f5f" }],
   },
   {
-    featureType: 'water',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#80b3ff' }],
+    featureType: "water",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#80b3ff" }],
   },
 ];
-
