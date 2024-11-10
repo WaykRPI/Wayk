@@ -9,32 +9,39 @@ import {
   PanResponder,
   Modal,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { useAuth } from "../../hooks/useAuth";
 import { useState, useEffect, useRef } from "react";
+
 import MapView, {
   Marker,
   PROVIDER_GOOGLE,
   MapType,
   Camera,
   Callout,
+  Polyline,
 } from "react-native-maps";
 import * as Location from "expo-location";
 import { supabase } from "../lib/supabase";
 import { useLocationContext } from "../../contexts/LocationContext";
 import ReportForm from "../../components/ReportForm";
+import PlacesSearch from "@/components/Search";
 import Svg, { Path } from "react-native-svg";
 import { Map, Layers, Navigation2 } from "lucide-react-native";
 import { Modalize } from "react-native-modalize";
 import { Float } from "react-native/Libraries/Types/CodegenTypes";
+import { getWalkingDirections, RouteData } from '../../services/directionService';
+import { DirectionsPanel } from '../../components/DirectionsPanel';
 import { ChatModal } from "../../components/ChatModal";
+
 
 const ANIMATION_INTERVAL = 16;
 const SERVER_UPDATE_INTERVAL = 1000;
 const INTERPOLATION_FACTOR = 0.15;
 const USER_MARKER_SIZE = 32;
 const OTHER_MARKER_SIZE = 24;
-
+const [isSearchFocused, setIsSearchFocused] = useState(false);
 const UserMarker = ({
   rotation = 0,
   color = "#0ea5e9",
@@ -88,6 +95,94 @@ export default function Home() {
   const lastServerUpdate = useRef(Date.now());
   const [isUserInteracting, setIsUserInteracting] = useState(false);
   const [isFollowingUser, setIsFollowingUser] = useState(true);
+  const [isRoutingMode, setIsRoutingMode] = useState(false);
+  const [destination, setDestination] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [route, setRoute] = useState<RouteData | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showDirections, setShowDirections] = useState(false);
+  const [selectedSearchPlace, setSelectedSearchPlace] = useState(null);
+
+  const handlePlaceSelect = async (place: any) => {
+    console.log("Place selected:", place);
+    if (!place || !place.latitude || !place.longitude || !location) return;
+    
+    setSelectedSearchPlace(place);
+    
+    // Animate to the selected location
+    mapRef.current?.animateCamera({
+      center: {
+        latitude: place.latitude,
+        longitude: place.longitude,
+      },
+      zoom: 17,
+      duration: 1000,
+    });
+  
+    // Set destination
+    setDestination({
+      latitude: place.latitude,
+      longitude: place.longitude,
+    });
+  
+    // Get and draw the route
+    try {
+      setIsLoading(true);
+      const routeData = await getWalkingDirections(
+        location.coords.latitude,
+        location.coords.longitude,
+        place.latitude,
+        place.longitude
+      );
+      setRoute(routeData);
+      setShowDirections(true);
+    } catch (error) {
+      console.error('Error getting directions:', error);
+      // Optionally show an error message to the user
+    } finally {
+      setIsLoading(false);
+    }
+  
+    // Exit routing mode if active
+    if (isRoutingMode) {
+      setIsRoutingMode(false);
+    }
+  
+    // Exit report mode if active
+    if (isReportMode) {
+      setReportMode(false);
+    }
+  
+    // Disable follow mode when selecting a place
+    setIsFollowingUser(false);
+  };
+
+  const handleMapPress = async (event: any) => {
+    if (isRoutingMode && location) {
+      const { latitude, longitude } = event.nativeEvent.coordinate;
+      setDestination({ latitude, longitude });
+      
+      try {
+        setIsLoading(true);
+        const routeData = await getWalkingDirections(
+          location.coords.latitude,
+          location.coords.longitude,
+          latitude,
+          longitude
+        );
+        setRoute(routeData);
+        setShowDirections(true);
+      } catch (error) {
+        console.error('Error:', error);
+        // Handle error appropriately
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
   const chatModalizeRef = useRef<Modalize>(null);
   const [chatState, setChatState] = useState<ChatState>({
     isOpen: false,
@@ -103,7 +198,7 @@ export default function Home() {
   }) => {
     let status = "Manual Control";
     let bgColor = "#64748b";
-
+  
     if (isFollowing) {
       status = "Following";
       bgColor = "#10b981";
@@ -112,14 +207,21 @@ export default function Home() {
       status = "Report Mode";
       bgColor = "#ef4444";
     }
-
+  
     return (
-      <View style={[styles.statusContainer, { backgroundColor: bgColor }]}>
-        <Text style={styles.statusText}>{status}</Text>
-      </View>
+      <>
+        <View style={styles.statusContainer}>
+          <Text style={styles.statusText}>{status}</Text>
+        </View>
+        
+        <View style={styles.searchContainer}>
+          <PlacesSearch 
+            onPlaceSelect={handlePlaceSelect}
+          />
+        </View>
+      </>
     );
   };
-
   const targetLocation = useRef({
     latitude: 37.78825,
     longitude: -122.4324,
@@ -521,7 +623,7 @@ export default function Home() {
         showsBuildings={true}
         showsTraffic={true}
         mapType={mapType}
-        onPress={handleLocationSelect}
+        onPress={handleMapPress}
         customMapStyle={mapStyle}
         followsUserLocation={false}
         minZoomLevel={15}
@@ -530,14 +632,20 @@ export default function Home() {
         pitchEnabled={true}
         toolbarEnabled={false}
         onPanDrag={() => {
-          setIsUserInteracting(true);
-          handleMapMovement();
+          if (!isSearchFocused) {
+            setIsUserInteracting(true);
+            handleMapMovement();
+          }
         }}
         onTouchStart={() => {
-          setIsUserInteracting(true);
+          if (!isSearchFocused) {
+            setIsUserInteracting(true);
+          }
         }}
         onTouchEnd={() => {
-          setIsUserInteracting(false);
+          if (!isSearchFocused) {
+            setIsUserInteracting(false);
+          }
         }}
         onRegionChangeComplete={(region) => {
           if (isUserInteracting) {
@@ -660,6 +768,21 @@ export default function Home() {
             )}
           </Marker>
         ))}
+                {destination && (
+          <Marker
+            coordinate={destination}
+            title="Destination"
+            pinColor="blue"
+          />
+        )}
+
+        {route && (
+          <Polyline
+            coordinates={route.coordinates}
+            strokeWidth={4}
+            strokeColor="#2563eb"
+          />
+        )}
       </MapView>
       <StatusIndicator
         isFollowing={isFollowingUser}
@@ -820,11 +943,71 @@ export default function Home() {
           </Pressable>
         </Pressable>
       </Modal>
+      <Pressable
+        style={[
+          styles.routingButton,
+          isRoutingMode && styles.routingButtonActive
+        ]}
+        onPress={() => {
+          setIsRoutingMode(!isRoutingMode);
+          if (!isRoutingMode) {
+            setDestination(null);
+            setRoute(null);
+            setShowDirections(false);
+          }
+        }}
+      >
+        <Text style={styles.routingButtonText}>
+          {isRoutingMode ? 'Cancel' : 'Set Walking Route'}
+        </Text>
+      </Pressable>
+
+      {isLoading && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2563eb" />
+        </View>
+      )}
+
+      {showDirections && route && (
+        <DirectionsPanel 
+          route={route} 
+          onClose={() => setShowDirections(false)}
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  routingButton: {
+    position: 'absolute',
+    bottom: 80, 
+    right: 20,
+    backgroundColor: '#2563eb',
+    borderRadius: 30, 
+    paddingHorizontal: 20,
+    paddingVertical: 15, 
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  routingButtonActive: {
+    backgroundColor: '#dc2626',
+  },
+  routingButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  loadingContainer: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -20 }, { translateY: -20 }],
+  },
   mapTypeButton: {
     position: "absolute",
     top: 20,
@@ -981,6 +1164,14 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     flex: 1,
   },
+  searchContainer: {
+    position: "absolute",
+    top: 120, // Moved up slightly to not interfere with other controls
+    left: 20,
+    right: 20,
+    zIndex: 999, // Ensure it's above other elements
+    elevation: 999, // For Android
+  },
   statusContainer: {
     position: "absolute",
     top: 40,
@@ -989,11 +1180,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
+    backgroundColor: "#64748b",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+    zIndex: 998,
+  },
+
+  searchContainer: {
+    position: "absolute",
+    top: 160, // Adjust this value to move the search bar up or down
+    left: 20,
+    right: 20,
+    zIndex: 2,
   },
   statusText: {
     color: "#fff",
