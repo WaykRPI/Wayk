@@ -82,15 +82,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ latitude, longitude, onReportSu
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#f2f2f2',
-    borderRadius: 10,
-    padding: 20,
-    margin: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 3,
+    padding: 20, 
   },
   title: {
     fontSize: 18,
