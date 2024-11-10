@@ -6,6 +6,28 @@ import * as Location from 'expo-location';
 import { supabase } from '../lib/supabase';
 import { useLocationContext } from '../../contexts/LocationContext';
 import ReportForm from '../../components/ReportForm';
+import Svg, { Path } from 'react-native-svg';
+import { Map, Layers } from 'lucide-react-native';
+
+const UserMarker = ({ rotation = 0, color = '#0ea5e9' }) => (
+  <Svg height={24} width={24} viewBox="0 0 24 24" style={{ transform: [{ rotate: `${rotation}deg` }] }}>
+    <Path
+      d="M12 2L2 22L12 18L22 22L12 2Z"
+      fill={color}
+      stroke="#FFFFFF"
+      strokeWidth={1}
+    />
+  </Svg>
+);
+
+interface ActiveUser {
+  id: string;
+  user_id: string;
+  latitude: number;
+  longitude: number;
+  last_updated: string;
+  user_email: string;
+}
 
 export default function Home() {
   const { user, signOut } = useAuth();
@@ -28,110 +50,130 @@ export default function Home() {
       latitude: 37.78825,
       longitude: -122.4324,
     },
-    pitch: 85, // Set closer to 90 for maximum tilt effect
-    altitude: 250, // Lower altitude for a closer-to-ground perspective
+    pitch: 85,
+    altitude: 250,
     heading: 0,
-    zoom: 17, // Increase zoom level to get a more focused view
+    zoom: 17,
   });
 
-  const mapStyle = [
-    {
-      elementType: 'geometry',
-      stylers: [{ color: '#1d1d1d' }],
-    },
-    {
-      elementType: 'labels.icon',
-      stylers: [{ visibility: 'off' }],
-    },
-    {
-      elementType: 'labels.text.fill',
-      stylers: [{ color: '#80b3ff' }],
-    },
-    {
-      elementType: 'labels.text.stroke',
-      stylers: [{ color: '#1d1d1d' }],
-    },
-    {
-      featureType: 'administrative',
-      elementType: 'geometry',
-      stylers: [{ color: '#2e2e2e' }],
-    },
-    {
-      featureType: 'administrative.country',
-      elementType: 'labels.text.fill',
-      stylers: [{ color: '#6699cc' }],
-    },
-    {
-      featureType: 'administrative.locality',
-      elementType: 'labels.text.fill',
-      stylers: [{ color: '#80b3ff' }],
-    },
-    {
-      featureType: 'poi',
-      elementType: 'labels.text.fill',
-      stylers: [{ color: '#5a8fc1' }],
-    },
-    {
-      featureType: 'poi.park',
-      elementType: 'geometry',
-      stylers: [{ color: '#1a1a1a' }],
-    },
-    {
-      featureType: 'poi.park',
-      elementType: 'labels.text.fill',
-      stylers: [{ color: '#4a90e2' }],
-    },
-    {
-      featureType: 'road',
-      elementType: 'geometry.fill',
-      stylers: [{ color: '#2e2e2e' }],
-    },
-    {
-      featureType: 'road',
-      elementType: 'labels.text.fill',
-      stylers: [{ color: '#6699cc' }],
-    },
-    {
-      featureType: 'road.arterial',
-      elementType: 'geometry',
-      stylers: [{ color: '#3a3a3a' }],
-    },
-    {
-      featureType: 'road.highway',
-      elementType: 'geometry',
-      stylers: [{ color: '#4a4a4a' }],
-    },
-    {
-      featureType: 'road.highway.controlled_access',
-      elementType: 'geometry',
-      stylers: [{ color: '#5b5b5b' }],
-    },
-    {
-      featureType: 'road.local',
-      elementType: 'labels.text.fill',
-      stylers: [{ color: '#4a90e2' }],
-    },
-    {
-      featureType: 'transit',
-      elementType: 'labels.text.fill',
-      stylers: [{ color: '#5a8fc1' }],
-    },
-    {
-      featureType: 'water',
-      elementType: 'geometry',
-      stylers: [{ color: '#1c3f5f' }],
-    },
-    {
-      featureType: 'water',
-      elementType: 'labels.text.fill',
-      stylers: [{ color: '#80b3ff' }],
-    },
-  ];
-
+  const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
+  const [watchLocation, setWatchLocation] = useState<any>(null);
   const [intersections, setIntersections] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
   const [isModalVisible, setModalVisible] = useState(false);
   const [isReportMode, setReportMode] = useState(false);
+
+  // Initial fetch of active users
+  useEffect(() => {
+    const fetchActiveUsers = async () => {
+      const { data, error } = await supabase
+        .from('active_users')
+        .select('*');
+      if (data && !error) {
+        setActiveUsers(data);
+      }
+    };
+    fetchActiveUsers();
+  }, []);
+
+  // Watch user's location
+  useEffect(() => {
+    const startWatchingLocation = async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+
+      const watchId = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          distanceInterval: 5,
+          timeInterval: 1000
+        },
+        async (newLocation) => {
+          const { latitude, longitude } = newLocation.coords;
+          
+          if (user) {
+            const { data: existingUser } = await supabase
+              .from('active_users')
+              .select('id')
+              .eq('user_id', user.id)
+              .single();
+
+            if (existingUser) {
+              await supabase
+                .from('active_users')
+                .update({
+                  latitude,
+                  longitude,
+                })
+                .eq('user_id', user.id);
+            } else {
+              await supabase
+                .from('active_users')
+                .insert({
+                  user_id: user.id,
+                  latitude,
+                  longitude,
+                  user_email: user.email
+                });
+            }
+          }
+        }
+      );
+      
+      setWatchLocation(watchId);
+    };
+
+    startWatchingLocation();
+    return () => {
+      if (watchLocation) {
+        watchLocation.remove();
+      }
+      if (user) {
+        supabase.from('active_users').delete().eq('user_id', user.id);
+      }
+    };
+  }, [user]);
+
+  // Subscribe to active users changes
+  useEffect(() => {
+    const subscription = supabase
+      .channel('active_users')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'active_users'
+        },
+        (payload) => {
+          setActiveUsers(current => {
+            const activeTimeout = new Date();
+            activeTimeout.setMinutes(activeTimeout.getMinutes() - 5);
+            
+            const filtered = current.filter(u => 
+              new Date(u.last_updated) > activeTimeout && 
+              u.user_id !== user?.id
+            );
+
+            if (payload.eventType !== 'DELETE' && payload.new.user_id !== user?.id) {
+              const exists = filtered.findIndex(u => u.user_id === payload.new.user_id);
+              if (exists >= 0) {
+                filtered[exists] = payload.new as ActiveUser;
+              } else {
+                filtered.push(payload.new as ActiveUser);
+              }
+            }
+
+            return filtered;
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [user]);
 
   useEffect(() => {
     if (location) {
@@ -142,7 +184,6 @@ export default function Home() {
         longitudeDelta: 0.0421,
       });
       
-      // Update camera center when location changes
       setCamera(prev => ({
         ...prev,
         center: {
@@ -205,17 +246,13 @@ export default function Home() {
     setSelectedLocation(null);
   };
 
-  const toggleMapType = () => {
-    setMapType(prev => prev === 'standard' ? 'hybrid' : 'standard');
-  };
-
   return (
     <View style={{ flex: 1 }}>
       <MapView
         style={{ flex: 1 }}
         provider={PROVIDER_GOOGLE}
         initialRegion={currentLocation}
-        showsUserLocation
+        showsUserLocation={false}
         showsMyLocationButton
         showsCompass
         showsBuildings={true}
@@ -225,6 +262,35 @@ export default function Home() {
         customMapStyle={mapStyle}
         camera={camera}
       >
+        {/* Current user marker */}
+        {location && (
+          <Marker
+            coordinate={{
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+            }}
+            title="You"
+            anchor={{ x: 0.5, y: 0.5 }}
+          >
+            <UserMarker color="#0ea5e9" />
+          </Marker>
+        )}
+
+        {/* Other active users */}
+        {activeUsers.map((activeUser) => (
+          <Marker
+            key={activeUser.id}
+            coordinate={{
+              latitude: activeUser.latitude,
+              longitude: activeUser.longitude,
+            }}
+            title={activeUser.user_email?.split('@')[0] || 'Anonymous'}
+            anchor={{ x: 0.5, y: 0.5 }}
+          >
+            <UserMarker color="#10b981" />
+          </Marker>
+        ))}
+
         {selectedLocation && (
           <Marker
             coordinate={selectedLocation}
@@ -237,6 +303,7 @@ export default function Home() {
             />
           </Marker>
         )}
+        
         {intersections.map((intersection) => (
           <Marker
             key={intersection.id}
@@ -253,6 +320,7 @@ export default function Home() {
             />
           </Marker>
         ))}
+        
         {reports.map((report) => (
           <Marker
             key={report.id}
@@ -267,15 +335,16 @@ export default function Home() {
         ))}
       </MapView>
 
-      {/* Camera Controls */}
-      <View style={styles.controlsContainer}>
-        <Pressable 
-          style={styles.controlButton}
-          onPress={toggleMapType}
-        >
-          <Text style={styles.controlButtonText}>Toggle Satellite</Text>
-        </Pressable>
-      </View>
+      <Pressable 
+        style={styles.mapTypeButton} 
+        onPress={() => setMapType(prev => prev === 'standard' ? 'hybrid' : 'standard')}
+      >
+        {mapType === 'standard' ? (
+          <Layers size={24} color="#fff" />
+        ) : (
+          <Map size={24} color="#fff" />
+        )}
+      </Pressable>
 
       <Pressable 
         style={[styles.toggleButton, isReportMode && styles.toggleButtonActive]} 
@@ -310,28 +379,18 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  controlsContainer: {
+  mapTypeButton: {
     position: 'absolute',
     top: 20,
-    right: 100,
-    backgroundColor: 'transparent',
-  },
-  controlButton: {
+    right: 20,
     backgroundColor: '#0ea5e9',
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 8,
+    padding: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3,
     elevation: 5,
-  },
-  controlButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
   },
   toggleButton: {
     position: 'absolute',
@@ -384,3 +443,97 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
+
+const mapStyle = [
+  {
+    elementType: 'geometry',
+    stylers: [{ color: '#1d1d1d' }],
+  },
+  {
+    elementType: 'labels.icon',
+    stylers: [{ visibility: 'off' }],
+  },
+  {
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#80b3ff' }],
+  },
+  {
+    elementType: 'labels.text.stroke',
+    stylers: [{ color: '#1d1d1d' }],
+  },
+  {
+    featureType: 'administrative',
+    elementType: 'geometry',
+    stylers: [{ color: '#2e2e2e' }],
+  },
+  {
+    featureType: 'administrative.country',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#6699cc' }],
+  },
+  {
+    featureType: 'administrative.locality',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#80b3ff' }],
+  },
+  {
+    featureType: 'poi',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#5a8fc1' }],
+  },
+  {
+    featureType: 'poi.park',
+    elementType: 'geometry',
+    stylers: [{ color: '#1a1a1a' }],
+  },
+  {
+    featureType: 'poi.park',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#4a90e2' }],
+  },
+  {
+    featureType: 'road',
+    elementType: 'geometry.fill',
+    stylers: [{ color: '#2e2e2e' }],
+  },
+  {
+    featureType: 'road',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#6699cc' }],
+  },
+  {
+    featureType: 'road.arterial',
+    elementType: 'geometry',
+    stylers: [{ color: '#3a3a3a' }],
+  },
+  {
+    featureType: 'road.highway',
+    elementType: 'geometry',
+    stylers: [{ color: '#4a4a4a' }],
+  },
+  {
+    featureType: 'road.highway.controlled_access',
+    elementType: 'geometry',
+    stylers: [{ color: '#5b5b5b' }],
+  },
+  {
+    featureType: 'road.local',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#4a90e2' }],
+  },
+  {
+    featureType: 'transit',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#5a8fc1' }],
+  },
+  {
+    featureType: 'water',
+    elementType: 'geometry',
+    stylers: [{ color: '#1c3f5f' }],
+  },
+  {
+    featureType: 'water',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#80b3ff' }],
+  },
+];
