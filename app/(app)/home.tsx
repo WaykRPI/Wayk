@@ -1,4 +1,4 @@
-import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Image, Modal } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
 import MapView, { Marker } from 'react-native-maps';
 import { useState, useEffect } from 'react';
@@ -20,8 +20,105 @@ export default function Home() {
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
+  const mapStyle = [
+    {
+      elementType: 'geometry',
+      stylers: [{ color: '#1d1d1d' }], // Black background for general map area
+    },
+    {
+      elementType: 'labels.icon',
+      stylers: [{ visibility: 'off' }],
+    },
+    {
+      elementType: 'labels.text.fill',
+      stylers: [{ color: '#80b3ff' }], // Light blue text for readability
+    },
+    {
+      elementType: 'labels.text.stroke',
+      stylers: [{ color: '#1d1d1d' }], // Match background for subtle effect
+    },
+    {
+      featureType: 'administrative',
+      elementType: 'geometry',
+      stylers: [{ color: '#2e2e2e' }], // Dark grey for administrative boundaries
+    },
+    {
+      featureType: 'administrative.country',
+      elementType: 'labels.text.fill',
+      stylers: [{ color: '#6699cc' }], // Medium blue for country labels
+    },
+    {
+      featureType: 'administrative.locality',
+      elementType: 'labels.text.fill',
+      stylers: [{ color: '#80b3ff' }], // Light blue for locality labels
+    },
+    {
+      featureType: 'poi',
+      elementType: 'labels.text.fill',
+      stylers: [{ color: '#5a8fc1' }], // Softer blue for points of interest
+    },
+    {
+      featureType: 'poi.park',
+      elementType: 'geometry',
+      stylers: [{ color: '#1a1a1a' }], // Darker black for parks
+    },
+    {
+      featureType: 'poi.park',
+      elementType: 'labels.text.fill',
+      stylers: [{ color: '#4a90e2' }], // Medium blue for park labels
+    },
+    {
+      featureType: 'road',
+      elementType: 'geometry.fill',
+      stylers: [{ color: '#2e2e2e' }], // Dark grey for roads
+    },
+    {
+      featureType: 'road',
+      elementType: 'labels.text.fill',
+      stylers: [{ color: '#6699cc' }], // Medium blue for road labels
+    },
+    {
+      featureType: 'road.arterial',
+      elementType: 'geometry',
+      stylers: [{ color: '#3a3a3a' }], // Dark grey for arterial roads
+    },
+    {
+      featureType: 'road.highway',
+      elementType: 'geometry',
+      stylers: [{ color: '#4a4a4a' }], // Slightly lighter grey for highways
+    },
+    {
+      featureType: 'road.highway.controlled_access',
+      elementType: 'geometry',
+      stylers: [{ color: '#5b5b5b' }], // Light grey for controlled-access highways
+    },
+    {
+      featureType: 'road.local',
+      elementType: 'labels.text.fill',
+      stylers: [{ color: '#4a90e2' }], // Light blue for local road labels
+    },
+    {
+      featureType: 'transit',
+      elementType: 'labels.text.fill',
+      stylers: [{ color: '#5a8fc1' }], // Softer blue for transit labels
+    },
+    {
+      featureType: 'water',
+      elementType: 'geometry',
+      stylers: [{ color: '#1c3f5f' }], // Deep blue for water bodies
+    },
+    {
+      featureType: 'water',
+      elementType: 'labels.text.fill',
+      stylers: [{ color: '#80b3ff' }], // Light blue for water labels
+    },
+  ];
+  
+
   const [intersections, setIntersections] = useState<any[]>([]);
-  const [reports, setReports] = useState<any[]>([]); // State to hold reports
+  const [reports, setReports] = useState<any[]>([]);
+  const [isModalVisible, setModalVisible] = useState(false);
+  const [isReportMode, setReportMode] = useState(false);
 
   useEffect(() => {
     if (location) {
@@ -31,12 +128,6 @@ export default function Home() {
         latitudeDelta: 0.0922,
         longitudeDelta: 0.0421,
       });
-      setSelectedLocation({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
-
-      fetchIntersections(location.coords.latitude, location.coords.longitude);
     }
   }, [location]);
 
@@ -61,102 +152,166 @@ export default function Home() {
 
   const fetchReports = async () => {
     try {
-      const { data, error } = await supabase
-        .from('reports')
-        .select('*');
-
+      const { data, error } = await supabase.from('reports').select('*');
       if (error) throw error;
-
-      setReports(data); // Set the reports state
+      setReports(data);
     } catch (error) {
       console.error('Error fetching reports:', error);
     }
   };
 
   useEffect(() => {
-    fetchReports(); // Fetch reports when the component mounts
+    fetchReports();
   }, []);
 
-  const handleLocationSelect = async (event: any) => {
+  const handleLocationSelect = (event: any) => {
+    if (!isReportMode) return;
+
     const coords = event.nativeEvent.coordinate;
     setSelectedLocation(coords);
+    setModalVisible(true);
   };
 
   const handleReportSubmitted = () => {
-    fetchReports(); // Refresh the reports after a new report is submitted
-    setSelectedLocation(null); // Clear the selected location
+    fetchReports();
+    setSelectedLocation(null);
+    setModalVisible(false);
+  };
+
+  const toggleReportMode = () => {
+    setReportMode(!isReportMode);
+    setSelectedLocation(null); // Clear selected location if toggling off
   };
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={{ flex: 1 }}>
-        <MapView
-          style={{ flex: 1 }}
-          initialRegion={currentLocation}
-          showsUserLocation
-          showsMyLocationButton
-          showsCompass
-          onPress={handleLocationSelect}
-        >
-          {selectedLocation && (
-            <Marker
-              coordinate={selectedLocation}
-              title="Selected Location"
-              description="Tap to confirm this location"
-            >
-              <Image 
-                source={{ uri: 'https://img.icons8.com/ios-filled/50/0ea5e9/marker.png' }} 
-                style={{ width: 30, height: 30 }} 
-              />
-            </Marker>
-          )}
-          {intersections.map((intersection) => (
-            <Marker
-              key={intersection.id}
-              coordinate={{
-                latitude: intersection.lat,
-                longitude: intersection.lon,
-              }}
-              title="Intersection"
-              description="Traffic signal or crossing"
-            >
-              <Image 
-                source={{ uri: 'https://img.icons8.com/ios-filled/50/ffcc00/marker.png' }} 
-                style={{ width: 30, height: 30 }} 
-              />
-            </Marker>
-          ))}
-          {reports.map((report) => (
-            <Marker
-              key={report.id}
-              coordinate={{
-                latitude: report.latitude,
-                longitude: report.longitude,
-              }}
-              title={report.report_type === 'obstacle' ? 'Obstacle' : 'Construction'}
-              description={report.description}
-              pinColor={report.report_type === 'obstacle' ? 'red' : 'orange'} // Different colors for different report types
+      <MapView
+        style={{ flex: 1 }}
+        initialRegion={currentLocation}
+        showsUserLocation
+        showsMyLocationButton
+        showsCompass
+        onPress={handleLocationSelect}
+         customMapStyle={mapStyle}  
+      >
+        {selectedLocation && (
+          <Marker
+            coordinate={selectedLocation}
+            title="Selected Location"
+            description="Tap to confirm this location"
+          >
+            <Image
+              source={{ uri: 'https://img.icons8.com/ios-filled/50/0ea5e9/marker.png' }}
+              style={{ width: 30, height: 30 }}
             />
-          ))}
-        </MapView>
-      </View>
+          </Marker>
+        )}
+        {intersections.map((intersection) => (
+          <Marker
+            key={intersection.id}
+            coordinate={{
+              latitude: intersection.lat,
+              longitude: intersection.lon,
+            }}
+            title="Intersection"
+            description="Traffic signal or crossing"
+          >
+            <Image
+              source={{ uri: 'https://img.icons8.com/ios-filled/50/ffcc00/marker.png' }}
+              style={{ width: 30, height: 30 }}
+            />
+          </Marker>
+        ))}
+        {reports.map((report) => (
+          <Marker
+            key={report.id}
+            coordinate={{
+              latitude: report.latitude,
+              longitude: report.longitude,
+            }}
+            title={report.report_type === 'obstacle' ? 'Obstacle' : 'Construction'}
+            description={report.description}
+            pinColor={report.report_type === 'obstacle' ? 'red' : 'orange'}
+          />
+        ))}
+      </MapView>
 
-      <View style={{ position: 'absolute', top: 40, left: 0, right: 0, alignItems: 'center', backgroundColor: 'rgba(255, 255, 255, 0.9)', padding: 20, margin: 20, borderRadius: 10 }}>
-        <Text style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 10 }}>Welcome!</Text>
-        <Text style={{ fontSize: 16, marginBottom: 20 }}>{user?.email}</Text>
-        {errorMsg && <Text style={{ color: '#ef4444', marginBottom: 10 }}>{errorMsg}</Text>}
-        
-        <Pressable style={{ backgroundColor: '#ef4444', padding: 15, borderRadius: 5, width: '100%', maxWidth: 200 }} onPress={signOut}>
-          <Text style={{ color: 'white', textAlign: 'center', fontWeight: 'bold' }}>Sign Out</Text>
-        </Pressable>
-      </View>
+      <Pressable style={[styles.toggleButton, isReportMode && styles.toggleButtonActive]} onPress={toggleReportMode}>
+        <Text style={styles.toggleButtonText}>{isReportMode ? 'Exit Report Mode' : 'Enter Report Mode'}</Text>
+      </Pressable>
 
-      {/* Add the ReportForm component here */}
-      <ReportForm 
-        latitude={selectedLocation?.latitude.toString() || ''} 
-        longitude={selectedLocation?.longitude.toString() || ''} 
-        onReportSubmitted={handleReportSubmitted} 
-      />
+      <Modal
+        visible={isModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <ReportForm
+              latitude={selectedLocation?.latitude.toString() || ''}
+              longitude={selectedLocation?.longitude.toString() || ''}
+              onReportSubmitted={handleReportSubmitted}
+            />
+            <Pressable onPress={() => setModalVisible(false)} style={styles.closeButton}>
+              <Text style={styles.closeButtonText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  toggleButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    backgroundColor: '#0ea5e9',
+    borderRadius: 30,
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  toggleButtonActive: {
+    backgroundColor: '#ef4444',
+  },
+  toggleButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '90%',
+    padding: 20,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  closeButton: {
+    marginTop: 10,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: '#0ea5e9',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+});

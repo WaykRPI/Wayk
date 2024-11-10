@@ -37,6 +37,7 @@ function RootLayoutNav() {
           backgroundColor: Colors.white,
         },
         headerShadowVisible: false,
+        headerShown: false,
         headerTintColor: Colors.text,
         headerTitleStyle: {
           fontWeight: '600',
