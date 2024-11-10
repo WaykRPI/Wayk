@@ -8,6 +8,7 @@ import {
   Dimensions,
   PanResponder,
   Modal,
+  ScrollView,
 } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
 import { useState, useEffect, useRef } from 'react';
@@ -19,6 +20,7 @@ import ReportForm from '../../components/ReportForm';
 import Svg, { Path } from 'react-native-svg';
 import { Map, Layers } from 'lucide-react-native';
 import { Modalize } from 'react-native-modalize';
+import { Float } from 'react-native/Libraries/Types/CodegenTypes';
 
 const ANIMATION_INTERVAL = 16; // ~60fps
 const SERVER_UPDATE_INTERVAL = 1000; // Update server every second
@@ -44,6 +46,17 @@ interface ActiveUser {
   longitude: number;
   last_updated: string;
   user_email: string;
+}
+
+interface Report {
+   id: string;
+   type: string;
+   latitude: Float;
+   longitude: Float;
+   description: string;
+   image_url?: string;
+   accuracy_score?: Number;
+   ai_analysis?: string;
 }
 
 export default function Home() {
@@ -104,10 +117,12 @@ export default function Home() {
 
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
   const [intersections, setIntersections] = useState<any[]>([]);
-  const [reports, setReports] = useState<any[]>([]);
+  const [reports, setReports] = useState<Report[]>([]);
   const [isModalVisible, setModalVisible] = useState(false);
   const [isReportMode, setReportMode] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isImageModalVisible, setIsImageModalVisible] = useState(false);
+  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
 
   const interpolateValue = (current: number, target: number, factor: number): number => {
     return current + (target - current) * factor;
@@ -366,6 +381,7 @@ export default function Home() {
       const { data, error } = await supabase.from('reports').select('*');
       if (error) throw error;
       setReports(data);
+      console.log(data, error);
     } catch (error) {
       console.error('Error fetching reports:', error);
     }
@@ -394,9 +410,11 @@ export default function Home() {
     setSelectedLocation(null);
   };
 
-  const handleMarkerPress = (imageUrl: string | undefined) => {
-    if (imageUrl) {
-      setSelectedImage(imageUrl);
+  const handleMarkerPress = (report: Report) => {
+    if (report) {
+      setSelectedReport(report);
+      setSelectedImage(report.image_url || null);
+      setIsImageModalVisible(true);
     }
   };
 
@@ -498,6 +516,7 @@ export default function Home() {
                     latitude: report.latitude,
                     longitude: report.longitude,
                  }}
+                 onPress={() => handleMarkerPress(report)}
               >
                  {report.image_url ? (
                     <Image
@@ -523,29 +542,6 @@ export default function Home() {
                        }}
                     />
                  )}
-                 <Callout tooltip>
-                    <View style={styles.calloutContainer}>
-                       <View style={styles.calloutContent}>
-                          {report.image_url && (
-                             <Image
-                                source={{ uri: report.image_url }}
-                                style={{
-                                   width: 40,
-                                   height: 40,
-                                   borderRadius: 20,
-                                   borderWidth: 2,
-                                   borderColor: '#fff',
-                                }}
-                                resizeMode='cover'
-                             />
-                          )}
-                          <Text style={styles.calloutTitle}>{report.type}</Text>
-                          <Text style={styles.calloutDescription}>
-                             {report.description || 'None'}
-                          </Text>
-                       </View>
-                    </View>
-                 </Callout>
               </Marker>
            ))}
         </MapView>
@@ -600,6 +596,88 @@ export default function Home() {
               </Pressable>
            </View>
         </Modalize>
+
+        <Modal
+           visible={isImageModalVisible}
+           transparent={true}
+           onRequestClose={() => {
+              setIsImageModalVisible(false);
+              setSelectedReport(null);
+           }}
+        >
+           <Pressable
+              style={styles.imageModalOverlay}
+              onPress={() => {
+                 setIsImageModalVisible(false);
+                 setSelectedReport(null);
+              }}
+           >
+              <View style={styles.imageModalContent}>
+                 <ScrollView style={styles.scrollView}>
+                    {selectedImage && (
+                       <Image
+                          source={{ uri: selectedImage }}
+                          style={styles.imageModalImage}
+                          resizeMode='cover'
+                       />
+                    )}
+                    <Text>
+                       {selectedReport && (
+                          <View style={styles.reportDetails}>
+                             <View style={styles.reportRow}>
+                                <Text style={styles.reportLabel}>Type:</Text>
+                                <Text style={styles.reportValue}>
+                                   {selectedReport.type}
+                                </Text>
+                             </View>
+
+                             <View style={styles.reportRow}>
+                                <Text style={styles.reportLabel}>
+                                   Description:
+                                </Text>
+                                <Text style={styles.reportValue}>
+                                   {selectedReport.description ||
+                                      'No description provided'}
+                                </Text>
+                             </View>
+
+                             {selectedReport.accuracy_score !== undefined && (
+                                <View style={styles.reportRow}>
+                                   <Text style={styles.reportLabel}>
+                                      Accuracy Score:
+                                   </Text>
+                                   <Text style={styles.reportValue}>
+                                      {String(selectedReport.accuracy_score)}
+                                   </Text>
+                                </View>
+                             )}
+
+                             {selectedReport.ai_analysis && (
+                                <View style={styles.reportRow}>
+                                   <Text style={styles.reportLabel}>
+                                      AI Analysis:
+                                   </Text>
+                                   <Text style={styles.reportValue}>
+                                      {selectedReport.ai_analysis}
+                                   </Text>
+                                </View>
+                             )}
+                          </View>
+                       )}
+                    </Text>
+                 </ScrollView>
+                 <Pressable
+                    style={styles.imageModalCloseButton}
+                    onPress={() => {
+                       setIsImageModalVisible(false);
+                       setSelectedReport(null);
+                    }}
+                 >
+                    <Text style={styles.imageModalCloseText}>✕</Text>
+                 </Pressable>
+              </View>
+           </Pressable>
+        </Modal>
      </View>
   );
 }
@@ -704,6 +782,93 @@ const styles = StyleSheet.create({
   calloutDescription: {
     fontSize: 14,
     color: '#666',
+  },
+  imageModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageModalContent: {
+    width: '90%',
+    maxHeight: '80%', // Increased to accommodate more content
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 15,
+    position: 'relative',
+  },
+  imageModalImage: {
+    width: '100%',
+    height: 300,
+    borderRadius: 8,
+  },
+  imageModalCloseButton: {
+    position: 'absolute',
+    top: -15,
+    right: -15,
+    backgroundColor: '#0ea5e9',
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageModalCloseText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  reportDetails: {
+    marginTop: 15,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
+  reportType: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#0ea5e9',
+    marginBottom: 8,
+  },
+  reportDescription: {
+    fontSize: 16,
+    color: '#374151',
+    marginBottom: 8,
+    lineHeight: 24,
+  },
+  reportAccuracy: {
+    fontSize: 15,
+    color: '#059669',
+    marginBottom: 8,
+  },
+  reportAnalysis: {
+    fontSize: 15,
+    color: '#6B7280',
+    fontStyle: 'italic',
+    lineHeight: 22,
+  },
+  scrollView: {
+    maxHeight: '100%',
+  },
+  
+  reportRow: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    flexWrap: 'wrap',
+  },
+  
+  reportLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#374151',
+    marginRight: 8,
+    minWidth: 100,
+  },
+  
+  reportValue: {
+    fontSize: 16,
+    color: '#6B7280',
+    flex: 1,
   },
 });
 
