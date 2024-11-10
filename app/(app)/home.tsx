@@ -77,7 +77,7 @@ interface Report {
   longitude: Float;
   description: string;
   image_url?: string;
-  accuracy_score?: Number;
+  accuracy_score?: string;
   ai_analysis?: string;
 }
 
@@ -836,54 +836,58 @@ export default function Home() {
             setSelectedReport(null);
           }}
         >
-          <View style={styles.imageModalContent}>
-            <ScrollView style={styles.scrollView}>
-              {selectedImage && (
+          <Pressable
+            style={styles.imageModalContent}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {selectedImage ? (
+              <View>
                 <Image
                   source={{ uri: selectedImage }}
                   style={styles.imageModalImage}
                   resizeMode="cover"
                 />
-              )}
-              <Text>
-                {selectedReport && (
-                  <View style={styles.reportDetails}>
-                    <View style={styles.reportRow}>
-                      <Text style={styles.reportLabel}>Type:</Text>
-                      <Text style={styles.reportValue}>
-                        {selectedReport.type}
-                      </Text>
-                    </View>
-
-                    <View style={styles.reportRow}>
-                      <Text style={styles.reportLabel}>Description:</Text>
-                      <Text style={styles.reportValue}>
-                        {selectedReport.description ||
-                          "No description provided"}
-                      </Text>
-                    </View>
-
-                    {selectedReport.accuracy_score !== undefined && (
-                      <View style={styles.reportRow}>
-                        <Text style={styles.reportLabel}>Accuracy Score:</Text>
-                        <Text style={styles.reportValue}>
-                          {String(selectedReport.accuracy_score)}
-                        </Text>
-                      </View>
-                    )}
-
-                    {selectedReport.ai_analysis && (
-                      <View style={styles.reportRow}>
-                        <Text style={styles.reportLabel}>AI Analysis:</Text>
-                        <Text style={styles.reportValue}>
-                          {selectedReport.ai_analysis}
-                        </Text>
-                      </View>
-                    )}
+                <View style={styles.reportDetailsContainer}>
+                  <View style={styles.reportHeader}>
+                    <Text style={styles.reportTitle}>
+                      {selectedReport?.type}
+                    </Text>
                   </View>
-                )}
-              </Text>
-            </ScrollView>
+                  <View style={styles.descriptionContainer}>
+                    <Text style={styles.reportDescription}>
+                      {selectedReport?.description || "No description provided"}
+                    </Text>
+                  </View>
+                  {selectedReport?.accuracy_score !== undefined && (
+                    <View style={styles.accuracyContainer}>
+                      <Text style={styles.accuracyScore}>
+                        {`${selectedReport.accuracy_score}% Accurate`}
+                      </Text>
+                    </View>
+                  )}
+
+                  {selectedReport?.ai_analysis && (
+                    <View style={styles.aiAnalysisContainer}>
+                      <Text style={styles.aiAnalysisLabel}>AI Analysis</Text>
+                      <Text style={styles.aiAnalysisText}>
+                        {selectedReport.ai_analysis}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            ) : (
+              <View style={styles.basicReportContainer}>
+                <View style={styles.reportHeader}>
+                  <Text style={styles.reportTitle}>{selectedReport?.type}</Text>
+                </View>
+                <View style={styles.descriptionContainer}>
+                  <Text style={styles.reportDescription}>
+                    {selectedReport?.description || "No description provided"}
+                  </Text>
+                </View>
+              </View>
+            )}
             <Pressable
               style={styles.imageModalCloseButton}
               onPress={() => {
@@ -893,7 +897,7 @@ export default function Home() {
             >
               <Text style={styles.imageModalCloseText}>✕</Text>
             </Pressable>
-          </View>
+          </Pressable>
         </Pressable>
       </Modal>
       <Pressable
@@ -1069,41 +1073,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
   },
-  imageModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  imageModalContent: {
-    width: "90%",
-    maxHeight: "80%", // Increased to accommodate more content
-    backgroundColor: "white",
-    borderRadius: 10,
-    padding: 15,
-    position: "relative",
-  },
-  imageModalImage: {
-    width: "100%",
-    height: 300,
-    borderRadius: 8,
-  },
-  imageModalCloseButton: {
-    position: "absolute",
-    top: -15,
-    right: -15,
-    backgroundColor: "#0ea5e9",
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  imageModalCloseText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
   reportDetails: {
     marginTop: 15,
     paddingTop: 15,
@@ -1115,12 +1084,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#0ea5e9",
     marginBottom: 8,
-  },
-  reportDescription: {
-    fontSize: 16,
-    color: "#374151",
-    marginBottom: 8,
-    lineHeight: 24,
   },
   reportAccuracy: {
     fontSize: 15,
@@ -1191,6 +1154,92 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "bold",
     fontSize: 14,
+  },
+  imageModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  imageModalContent: {
+    width: "100%",
+    backgroundColor: "white",
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  imageModalImage: {
+    width: "100%",
+    height: 250,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  reportDetailsContainer: {
+    padding: 20,
+  },
+  basicReportContainer: {
+    padding: 20,
+  },
+  reportHeader: {
+    marginBottom: 12,
+  },
+  reportTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#1f2937",
+  },
+  descriptionContainer: {
+    marginBottom: 16,
+  },
+  reportDescription: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: "#4b5563",
+  },
+  accuracyContainer: {
+    backgroundColor: "#f0fdf4",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  accuracyScore: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#059669",
+    textAlign: "center",
+  },
+  aiAnalysisContainer: {
+    backgroundColor: "#f3f4f6",
+    padding: 16,
+    borderRadius: 12,
+  },
+  aiAnalysisLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: 8,
+  },
+  aiAnalysisText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: "#4b5563",
+  },
+  imageModalCloseButton: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1,
+  },
+  imageModalCloseText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });
 
