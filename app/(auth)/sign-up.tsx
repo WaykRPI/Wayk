@@ -1,21 +1,23 @@
-import { View, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+// Signup.tsx
 import { useState } from 'react';
-import { useAuth } from '../../hooks/useAuth';
-import { Link, useRouter } from 'expo-router';
+import { View, TextInput, TouchableOpacity, SafeAreaView } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
 import { ThemedText } from '../../components/ThemedText';
-import { Colors } from '../../constants/Colors';
+import { authStyles, Colors } from './styles';
+import { useLocationContext } from '../../contexts/LocationContext';
+import { supabase } from '@/app/lib/supabase';
 
-export default function SignUp() {
+export default function Signup() {
+  const router = useRouter();
+  const { errorMsg } = useLocationContext();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  const { signUpWithEmail } = useAuth();
-  const router = useRouter();
 
-  const handleSignUp = async () => {
+  const handleSignup = async () => {
     if (!email || !password || !confirmPassword) {
       setError('Please fill in all fields');
       return;
@@ -26,183 +28,112 @@ export default function SignUp() {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
-      return;
-    }
-
     try {
       setLoading(true);
       setError(null);
-      await signUpWithEmail(email, password);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'An error occurred');
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (error) throw error;
+      if (data.session) {
+        router.replace('/');
+      } else {
+        setError('Please check your email to confirm your account');
+      }
+    } catch (error: any) {
+      setError(error.message || 'An error occurred during signup');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.overlay}>
-        <View style={styles.header}>
-          <ThemedText type='title' style={styles.title}>
-            Create Account
-          </ThemedText>
-          <ThemedText style={styles.subtitle}>
-            Sign up to get started
+    <SafeAreaView style={authStyles.container}>
+      <View style={authStyles.contentContainer}>
+        {errorMsg && (
+          <View style={authStyles.errorContainer}>
+            <ThemedText style={authStyles.errorText}>
+              ⚠️ {errorMsg}
+            </ThemedText>
+          </View>
+        )}
+
+        <View style={authStyles.logoContainer}>
+          <View style={authStyles.logoBox}>
+            <Feather name="navigation" size={48} color={Colors.white} />
+          </View>
+          <ThemedText style={authStyles.title}>Join Wayk</ThemedText>
+          <ThemedText style={authStyles.subtitle}>
+            Help make walking safer for everyone
           </ThemedText>
         </View>
 
         {error && (
-          <ThemedText style={styles.error}>
-            {error}
-          </ThemedText>
+          <View style={authStyles.errorContainer}>
+            <ThemedText style={authStyles.errorText}>{error}</ThemedText>
+          </View>
         )}
 
-        <View style={styles.form}>
-          <View style={styles.inputContainer}>
-            <ThemedText style={styles.label}>Email</ThemedText>
-            <TextInput
-              style={styles.input}
-              placeholder='Enter your email'
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize='none'
-              keyboardType='email-address'
-              placeholderTextColor={Colors.lightText}
-              editable={!loading}
-            />
-          </View>
+        <View style={authStyles.inputContainer}>
+          <ThemedText style={authStyles.inputLabel}>Email</ThemedText>
+          <TextInput
+            style={authStyles.input}
+            value={email}
+            onChangeText={setEmail}
+            placeholder="Enter your email"
+            placeholderTextColor={Colors.textSecondary}
+            autoCapitalize="none"
+            keyboardType="email-address"
+          />
+        </View>
 
-          <View style={styles.inputContainer}>
-            <ThemedText style={styles.label}>Password</ThemedText>
-            <TextInput
-              style={styles.input}
-              placeholder='Enter your password'
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              placeholderTextColor={Colors.lightText}
-              editable={!loading}
-            />
-          </View>
+        <View style={authStyles.inputContainer}>
+          <ThemedText style={authStyles.inputLabel}>Password</ThemedText>
+          <TextInput
+            style={authStyles.input}
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Create a password"
+            placeholderTextColor={Colors.textSecondary}
+            secureTextEntry
+          />
+        </View>
 
-          <View style={styles.inputContainer}>
-            <ThemedText style={styles.label}>Confirm Password</ThemedText>
-            <TextInput
-              style={styles.input}
-              placeholder='Confirm your password'
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              secureTextEntry
-              placeholderTextColor={Colors.lightText}
-              editable={!loading}
-            />
-          </View>
+        <View style={authStyles.inputContainer}>
+          <ThemedText style={authStyles.inputLabel}>Confirm Password</ThemedText>
+          <TextInput
+            style={authStyles.input}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            placeholder="Confirm your password"
+            placeholderTextColor={Colors.textSecondary}
+            secureTextEntry
+          />
+        </View>
 
-          <TouchableOpacity 
-            style={[styles.button, { opacity: loading ? 0.5 : 1 }]} 
-            onPress={handleSignUp}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <ThemedText style={styles.buttonText}>Create Account</ThemedText>
-            )}
+        <TouchableOpacity
+          style={[authStyles.button, loading && authStyles.buttonDisabled]}
+          onPress={handleSignup}
+          disabled={loading}
+        >
+          <ThemedText style={authStyles.buttonText}>
+            {loading ? 'Creating Account...' : 'Create Account'}
+          </ThemedText>
+        </TouchableOpacity>
+
+        <View style={authStyles.footer}>
+          <ThemedText style={authStyles.footerText}>
+            Already have an account?{' '}
+          </ThemedText>
+          <TouchableOpacity onPress={() => router.replace('/login')}>
+            <ThemedText style={authStyles.footerLink}>Sign In</ThemedText>
           </TouchableOpacity>
-
-          <View style={styles.footer}>
-            <ThemedText style={styles.footerText}>
-              Already have an account?{' '}
-            </ThemedText>
-            <Link href="/(auth)/sign-in" asChild>
-              <TouchableOpacity>
-                <ThemedText style={styles.linkText}>Sign In</ThemedText>
-              </TouchableOpacity>
-            </Link>
-          </View>
         </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  overlay: {
-    flex: 1,
-    padding: 24,
-    backgroundColor: Colors.transparent,
-  },
-  header: {
-    marginTop: 60,
-  },
-  title: {
-    marginTop: 60,
-    marginBottom: 10,
-    textAlign: 'center',
-    color: Colors.lightText,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: Colors.lightText,
-    textAlign: 'center',
-  },
-  form: {
-    gap: 10,
-    marginTop: 20,
-  },
-  inputContainer: {
-    gap: 8,
-  },
-  label: {
-    fontSize: 14,
-    marginLeft: 4,
-  },
-  input: {
-    height: 50,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    backgroundColor: Colors.white,
-  },
-  button: {
-    height: 50,
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  buttonText: {
-    color: Colors.white,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 20,
-  },
-  footerText: {
-    color: Colors.lightText,
-  },
-  linkText: {
-    color: Colors.primary,
-    fontWeight: '600',
-  },
-  error: {
-    color: Colors.error || '#ef4444',
-    textAlign: 'center',
-    marginBottom: 10,
-    backgroundColor: '#fee2e2',
-    padding: 10,
-    borderRadius: 8,
-  },
-});
