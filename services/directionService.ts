@@ -16,6 +16,36 @@ export interface RouteData {
   steps: RouteStep[];
 }
 
+// Constants for walking calculations
+const WALKING_SPEED = 1.4; // Average walking speed in meters per second (5 km/h)
+const INTERSECTION_DELAY = 30; // Seconds to wait at intersections/crossings
+const ELEVATION_FACTOR = 1.2; // Multiplier for uphill sections
+const REST_INTERVAL = 1800; // Every 30 minutes of walking
+const REST_DURATION = 300; // 5 minutes rest
+
+function calculateWalkingDuration(
+  distance: number,
+  elevationGain: number = 0,
+  intersections: number = 0
+): number {
+  // Base duration using average walking speed
+  let duration = distance / WALKING_SPEED;
+
+  // Add time for intersections
+  duration += intersections * INTERSECTION_DELAY;
+
+  // Add rest periods for long walks
+  const restPeriods = Math.floor(duration / REST_INTERVAL);
+  duration += restPeriods * REST_DURATION;
+
+  // Account for elevation if available
+  if (elevationGain > 0) {
+    duration *= ELEVATION_FACTOR;
+  }
+
+  return Math.round(duration);
+}
+
 function decodePolyline(str: string, precision = 5) {
   let index = 0;
   let lat = 0;
@@ -62,14 +92,31 @@ function decodePolyline(str: string, precision = 5) {
   return coordinates;
 }
 
-function generateSteps(route: any): RouteStep[] {
-  if (!route.legs?.[0]?.steps) return [];
+function estimateIntersections(steps: any[]): number {
+  // Estimate number of intersections based on turn instructions
+  return steps.filter(step => 
+    step.maneuver?.type === 'turn' || 
+    step.maneuver?.type === 'crossing' ||
+    step.maneuver?.modifier === 'left' ||
+    step.maneuver?.modifier === 'right' ||
+    step.maneuver?.modifier === 'straight'
+  ).length;
+}
 
-  return route.legs[0].steps.map((step: any) => ({
-    text: step.maneuver.instruction,
-    distance: step.distance,
-    duration: step.duration
-  }));
+function processSteps(steps: any[]): RouteStep[] {
+  if (!steps) return [];
+
+  return steps.map(step => {
+    const distance = step.distance;
+    const intersectionCount = step.maneuver?.type === 'turn' ? 1 : 0;
+    const duration = calculateWalkingDuration(distance, 0, intersectionCount);
+
+    return {
+      text: step.maneuver?.instruction || 'Continue',
+      distance: distance,
+      duration: duration
+    };
+  });
 }
 
 export const getWalkingDirections = async (
@@ -79,7 +126,6 @@ export const getWalkingDirections = async (
   endLng: number
 ): Promise<RouteData> => {
   try {
-    // Using OSRM backend
     const response = await fetch(
       `https://router.project-osrm.org/route/v1/foot/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=polyline&steps=true`
     );
@@ -96,16 +142,18 @@ export const getWalkingDirections = async (
 
     const route = data.routes[0];
     const coordinates = decodePolyline(route.geometry);
+    const steps = processSteps(route.legs?.[0]?.steps || []);
+    
+    // Calculate total distance and duration
+    const totalDistance = route.distance;
+    const intersections = estimateIntersections(route.legs?.[0]?.steps || []);
+    const totalDuration = calculateWalkingDuration(totalDistance, 0, intersections);
 
     return {
       coordinates,
-      distance: route.distance, // in meters
-      duration: route.duration, // in seconds
-      steps: route.legs?.[0]?.steps?.map((step: any) => ({
-        text: step.maneuver?.instruction || 'Continue',
-        distance: step.distance,
-        duration: step.duration
-      })) || []
+      distance: totalDistance,
+      duration: totalDuration,
+      steps
     };
   } catch (error) {
     console.error('Error fetching directions:', error);
@@ -113,7 +161,7 @@ export const getWalkingDirections = async (
   }
 };
 
-// Optional: Helper function to format distance and duration for display
+// Helper functions for displaying route information
 export const formatRouteInfo = {
   distance: (meters: number): string => {
     if (meters < 1000) {
@@ -125,10 +173,17 @@ export const formatRouteInfo = {
   duration: (seconds: number): string => {
     const minutes = Math.round(seconds / 60);
     if (minutes < 60) {
-      return `${minutes} min`;
+      return `${minutes} min walk`;
     }
     const hours = Math.floor(minutes / 60);
     const remainingMinutes = minutes % 60;
-    return `${hours}h ${remainingMinutes}min`;
+    return remainingMinutes > 0 
+      ? `${hours}h ${remainingMinutes}min walk`
+      : `${hours}h walk`;
+  },
+
+  pace: (meters: number, seconds: number): string => {
+    const paceInMinutesPerKm = (seconds / 60) / (meters / 1000);
+    return `${Math.round(paceInMinutesPerKm)} min/km`;
   }
 };

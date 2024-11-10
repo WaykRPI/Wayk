@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   TextInput,
@@ -61,7 +61,7 @@ const PlacesSearch = ({ onPlaceSelect }) => {
     }
   };
 
-  const handlePlaceSearch = (place) => {
+  const handlePlaceSelect = (place) => {
     onPlaceSelect(place);
     setSearchQuery(place.name);
     setResults([]);
@@ -96,6 +96,10 @@ const PlacesSearch = ({ onPlaceSelect }) => {
     setIsFocused(false);
   };
 
+  const focusSearchInput = () => {
+    inputRef.current?.focus();
+  };
+
   const renderItem = ({ item }) => (
     <TouchableOpacity
       style={styles.resultItem}
@@ -113,35 +117,41 @@ const PlacesSearch = ({ onPlaceSelect }) => {
 
   return (
     <View style={styles.container}>
-      <View style={[
-        styles.searchContainer,
-        isFocused && styles.searchContainerFocused
-      ]}>
-        <Search size={20} color="#666" style={styles.searchIcon} />
-        <TextInput
-          ref={inputRef}
-          style={styles.searchInput}
-          placeholder="Search places..."
-          value={searchQuery}
-          onChangeText={handleSearchChange}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          placeholderTextColor="#999"
-          returnKeyType="search"
-          autoCapitalize="none"
-          autoCorrect={false}
-          clearButtonMode="while-editing"
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity 
-            onPress={clearSearch} 
-            style={styles.clearButton}
-            hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-          >
-            <X size={20} color="#666" />
-          </TouchableOpacity>
-        )}
-      </View>
+      <TouchableOpacity 
+        activeOpacity={1} 
+        style={styles.searchWrapper}
+        onPress={focusSearchInput}
+      >
+        <View style={[
+          styles.searchContainer,
+          isFocused && styles.searchContainerFocused
+        ]}>
+          <Search size={20} color="#666" style={styles.searchIcon} />
+          <TextInput
+            ref={inputRef}
+            style={styles.searchInput}
+            placeholder="Search places..."
+            value={searchQuery}
+            onChangeText={handleSearchChange}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            placeholderTextColor="#999"
+            returnKeyType="search"
+            autoCapitalize="none"
+            autoCorrect={false}
+            clearButtonMode="while-editing"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity 
+              onPress={clearSearch} 
+              style={styles.clearButton}
+              hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+            >
+              <X size={20} color="#666" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </TouchableOpacity>
 
       <Animated.View style={[
         styles.resultsContainer,
@@ -170,6 +180,9 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     zIndex: 1000,
+  },
+  searchWrapper: {
+    width: '100%',
   },
   searchContainer: {
     flexDirection: 'row',
