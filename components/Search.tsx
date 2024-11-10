@@ -17,7 +17,9 @@ const PlacesSearch = ({ onPlaceSelect }) => {
   const [results, setResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const animatedHeight = useRef(new Animated.Value(0)).current;
+  const inputRef = useRef(null);
 
   const searchPlaces = async (query) => {
     if (!query.trim()) {
@@ -27,7 +29,6 @@ const PlacesSearch = ({ onPlaceSelect }) => {
 
     setIsLoading(true);
     try {
-      // Using Nominatim OpenStreetMap API for geocoding
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
           query
@@ -74,6 +75,7 @@ const PlacesSearch = ({ onPlaceSelect }) => {
     setResults([]);
     setIsExpanded(false);
     animateSearchBar(false);
+    inputRef.current?.clear();
   };
 
   const animateSearchBar = (expand) => {
@@ -86,13 +88,19 @@ const PlacesSearch = ({ onPlaceSelect }) => {
 
   const handleFocus = () => {
     setIsExpanded(true);
+    setIsFocused(true);
     animateSearchBar(true);
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
   };
 
   const renderItem = ({ item }) => (
     <TouchableOpacity
       style={styles.resultItem}
       onPress={() => handlePlaceSelect(item)}
+      activeOpacity={0.7}
     >
       <Text style={styles.placeName} numberOfLines={1}>
         {item.name.split(',')[0]}
@@ -105,23 +113,41 @@ const PlacesSearch = ({ onPlaceSelect }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.searchContainer}>
+      <View style={[
+        styles.searchContainer,
+        isFocused && styles.searchContainerFocused
+      ]}>
         <Search size={20} color="#666" style={styles.searchIcon} />
         <TextInput
+          ref={inputRef}
           style={styles.searchInput}
           placeholder="Search places..."
           value={searchQuery}
           onChangeText={handleSearchChange}
           onFocus={handleFocus}
+          onBlur={handleBlur}
+          placeholderTextColor="#999"
+          returnKeyType="search"
+          autoCapitalize="none"
+          autoCorrect={false}
+          clearButtonMode="while-editing"
         />
         {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
+          <TouchableOpacity 
+            onPress={clearSearch} 
+            style={styles.clearButton}
+            hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+          >
             <X size={20} color="#666" />
           </TouchableOpacity>
         )}
       </View>
 
-      <Animated.View style={[styles.resultsContainer, { height: animatedHeight }]}>
+      <Animated.View style={[
+        styles.resultsContainer,
+        { height: animatedHeight },
+        results.length === 0 && { height: 0 }
+      ]}>
         {isLoading ? (
           <ActivityIndicator style={styles.loader} color="#0ea5e9" />
         ) : (
@@ -131,6 +157,8 @@ const PlacesSearch = ({ onPlaceSelect }) => {
             keyExtractor={(item) => item.id.toString()}
             keyboardShouldPersistTaps="handled"
             style={styles.resultsList}
+            contentContainerStyle={styles.resultsContent}
+            showsVerticalScrollIndicator={false}
           />
         )}
       </Animated.View>
@@ -140,10 +168,7 @@ const PlacesSearch = ({ onPlaceSelect }) => {
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute',
-    top: 100,
-    left: 20,
-    right: 20,
+    width: '100%',
     zIndex: 1000,
   },
   searchContainer: {
@@ -158,6 +183,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  searchContainerFocused: {
+    borderColor: '#0ea5e9',
+    shadowColor: '#0ea5e9',
+    shadowOpacity: 0.3,
   },
   searchIcon: {
     marginRight: 10,
@@ -166,9 +198,13 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: '#333',
+    paddingVertical: 8,
+    paddingRight: 35,
   },
   clearButton: {
     padding: 5,
+    position: 'absolute',
+    right: 10,
   },
   resultsContainer: {
     backgroundColor: 'white',
@@ -183,6 +219,9 @@ const styles = StyleSheet.create({
   },
   resultsList: {
     flex: 1,
+  },
+  resultsContent: {
+    paddingVertical: 5,
   },
   resultItem: {
     padding: 15,

@@ -99,16 +99,41 @@ export default function Home() {
   const [showDirections, setShowDirections] = useState(false);
   const [selectedSearchPlace, setSelectedSearchPlace] = useState(null);
 
-  const handlePlaceSelect = (place) => {
+  const handlePlaceSelect = (place: any) => {
+    if (!place || !place.latitude || !place.longitude) return;
+    
     setSelectedSearchPlace(place);
+    
+    // Animate to the selected location
     mapRef.current?.animateCamera({
       center: {
         latitude: place.latitude,
         longitude: place.longitude,
       },
       zoom: 17,
+      duration: 1000, // Smooth animation over 1 second
     });
+  
+    // Optionally set a marker or perform other actions
+    setDestination({
+      latitude: place.latitude,
+      longitude: place.longitude,
+    });
+  
+    // Exit routing mode if active
+    if (isRoutingMode) {
+      setIsRoutingMode(false);
+    }
+  
+    // Exit report mode if active
+    if (isReportMode) {
+      setReportMode(false);
+    }
+  
+    // Disable follow mode when selecting a place
+    setIsFollowingUser(false);
   };
+  
 
   const handleMapPress = async (event: any) => {
     if (isRoutingMode && location) {
@@ -567,7 +592,7 @@ export default function Home() {
         showsBuildings={true}
         showsTraffic={true}
         mapType={mapType}
-        onPress={handleLocationSelect}
+        onPress={handleMapPress}
         customMapStyle={mapStyle}
         followsUserLocation={false}
         minZoomLevel={15}
@@ -1114,6 +1139,13 @@ const styles = StyleSheet.create({
     right: 20,
     zIndex: 1, // Ensure it's above the map
     backgroundColor: 'transparent',
+  },
+  searchOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
   },
   statusContainer: {
     position: "absolute",
