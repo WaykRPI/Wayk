@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity } from 'react-native';
-import { useAuth } from '../hooks/useAuth';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { supabase } from '../app/lib/supabase';
+import { useAuth } from '../hooks/useAuth';
 
 interface ReportFormProps {
   latitude: string;
@@ -11,9 +11,9 @@ interface ReportFormProps {
 
 const ReportForm: React.FC<ReportFormProps> = ({ latitude, longitude, onReportSubmitted }) => {
   const { user } = useAuth();
-  const [description, setDescription] = useState('');
+  const [description, setDescription] = useState<string>('');
   const [reportType, setReportType] = useState<'obstacle' | 'construction'>('obstacle');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
@@ -38,10 +38,9 @@ const ReportForm: React.FC<ReportFormProps> = ({ latitude, longitude, onReportSu
 
       if (error) throw error;
 
-      // Clear the form after submission
       setDescription('');
       setReportType('obstacle');
-      onReportSubmitted(); // Notify parent component
+      onReportSubmitted();
     } catch (error) {
       setError('An error occurred while submitting the report.');
     } finally {
